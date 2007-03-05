@@ -1,0 +1,63 @@
+/* project : javaonzx
+   file    : javaonzxb.xcl
+   author  : valker
+
+   note    : this is the command file to be used with the z80 c-compiler v4.xx
+   usage   : xlink your_file(s) -f javaonzxb.xlc
+
+   version : 0.0
+
+*/
+
+/*
+   define CPU : z80
+*/
+-cz80
+
+
+
+
+/* Memory area for codes and consts.
+   processor address range is [0xC000 - 0xFFFF]
+   size of each bank is 0x4000 (16384 dec) bytes
+   banks with number 2 and 5 are reserved for system memory
+   available banks are: 0,1,3,4,6,7
+   bank #7 is used for output to the screen
+*/
+-b(CODE)CODE,CONST=00C000,4000,10000
+
+
+
+
+/*
+    If using a simple latch to select memory banks: 
+    Set the "bank" segments initial_address,size,bankincrement  
+    -b(CODE)CODE=4000,4000,10000 banks will be numbered 00,01,02... 
+
+    The interrupts vectors are supposed to start at 3F00
+    and take 256 (FFH) bytes                              
+*/
+
+/* Define system memory allocation:
+   1. interrupt vector
+   2. processor's stack
+   3. space for code, constants and strings
+   4. space for variables
+*/
+-Z(CODE)INTVEC=4000-4100
+-Z(DATA)CSTACK+1A00=4101-5B00
+-Z(CODE)RCODE,CDATA0,CSTR,CCSTR=6000-9FFF
+-Z(DATA)DATA0,IDATA0,UDATA0,ECSTR,TEMP=A001-AFFF
+
+
+
+
+
+//  See configuration section concerning printf/sprintf  
+//-e_small_write=_formatted_write
+
+//  See configuration section concerning scanf/sscanf  
+//-e_medium_read=_formatted_read
+
+//  Load the 'C' library  
+a

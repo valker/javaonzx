@@ -1,0 +1,512 @@
+; project : javaonzx
+; file    : L08.s01
+; purpose : high memory management for zx-spectrum 128
+; authors : unknown, valker
+
+;------------------------------------------------------------------------------
+;
+;	Group name:	Z80 - Bank switched CALL and RETURN
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Must be tailored for acutal bank-switching hardware.
+;	The io port is also assumed to be readable.
+;
+;	The port address is determined by the external symbol
+;	?BANK_SWITCH_PORT_L08 which is defined in the linking file.
+;
+;------------------------------------------------------------------------------
+; MODIFIED BY VALKER ON 26.02.2007 TO SUPPORT ZX-SPECTRUM 128 ENVIRONMENT
+;------------------------------------------------------------------------------
+
+MODULE VARS
+
+  PUBLIC PORT_7FFD
+  PUBLIC PORT_TABLE
+  PUBLIC BANK_PORT_INIT
+
+BANK_PORT_INIT EQU 0x18
+
+RSEG DATA0
+; VARIABLE THAT STORES CURRENT 7FFD PORT VALUE
+PORT_7FFD DEFS 1
+
+;
+RSEG CDATA0
+PORT_TABLE  DEFB 0x18 ;0
+            DEFB 0x19 ;1
+            DEFB 0x1B ;3
+            DEFB 0x1C ;4
+            DEFB 0x1E ;6
+
+ENDMOD
+
+MODULE ?INIT_BANKED_MEMORY
+  RSEG RCODE
+  PUBLIC ?INIT_BANKED_MEMORY
+  EXTERN BANK_PORT_INIT
+  EXTERN PORT_7FFD
+?INIT_BANKED_MEMORY
+  LD    A,BANK_PORT_INIT
+  LD    (PORT_7FFD),A
+  RET
+ENDMOD
+
+
+;#define proc64180 ((__TID__&0x010)==0x010)
+
+;#if proc64180
+	                     ; define I/O port to MMU registers
+;#define BBR_addr 39H
+                     	     ; (See also defines in cstartup.s01 and debug.s01)
+;#endif
+
+	MODULE	?BANK_CALL_EXAF_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked RST call using af'
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	A=bank, HL=address
+;	Operation:		
+;	Returns with:	 	
+;	Modified registers:	AF'
+;	Stack usage:		2 bytes
+;	SZ_flags valid for:	not affected, F' not valid
+;	Carry:			not affected, F' not valid
+;
+;	Description:	Saves old bank number and switches to the new bank
+;
+;------------------------------------------------------------------------------
+
+	ASEG
+
+	PUBLIC	?BANK_CALL_EXAF_L08
+#if proc64180
+	EXTERN	?BANK_CALL_DIRECT_EXAF_L08
+#else
+;	EXTERN	?BANK_SWITCH_PORT_L08
+        EXTERN  PORT_7FFD
+        EXTERN  PORT_TABLE
+#endif
+
+;	ORG		28H
+?BANK_CALL_EXAF_L08
+
+#if proc64180
+	JP	?BANK_CALL_DIRECT_EXAF_L08
+#else
+	EX	AF,AF'
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	IN	A,(?BANK_SWITCH_PORT_L08)
+        LD      A,(PORT_7FFD)
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	PUSH	AF				; Save old bank-number
+	EX	AF,AF'
+	;;;;;;;;;;;;;;;;
+;	OUT	(?BANK_SWITCH_PORT_L08),A
+        PUSH    BC
+        LD      BC, PORT_TABLE
+        ADD     A,C
+        LD      C,A
+        LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)
+        LD      BC, 0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     BC
+        ;;;;;;;;;;;;;;;;
+	JP	(HL)
+#endif
+
+	ENDMOD
+
+
+	MODULE	?BANK_CALL_DIRECT_EXAF_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked call using af'
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	A=bank, HL=address
+;	Operation:		
+;	Returns with:	 	
+;	Modified registers:	AF'
+;	Stack usage:		2 bytes
+;	SZ_flags valid for:	not affected, F' not valid
+;	Carry:			not affected, F' not valid
+;
+;	Description:	Saves old bank number and switches to the new bank
+;
+;------------------------------------------------------------------------------
+
+	RSEG	RCODE
+
+	PUBLIC	?BANK_CALL_DIRECT_EXAF_L08
+
+#if !proc64180
+;	EXTERN	?BANK_SWITCH_PORT_L08
+        EXTERN  PORT_7FFD
+        EXTERN  PORT_TABLE
+#endif
+
+?BANK_CALL_DIRECT_EXAF_L08
+
+	EX	AF,AF'
+
+#if proc64180
+	IN0	A,(BBR_addr)	                ; Get BBR
+	PUSH	AF				; Save old bank-number
+	EX	AF,AF'
+	OUT0	(BBR_addr),A	                ; Set BBR
+#else
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;IN	A,(?BANK_SWITCH_PORT_L08)
+	LD      A,(PORT_7FFD)
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	PUSH	AF				; Save old bank-number
+	EX	AF,AF'
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;OUT	(?BANK_SWITCH_PORT_L08),A
+	PUSH    BC
+        LD      BC, PORT_TABLE
+        ADD     A,C
+        LD      C,A
+        LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)
+        LD      BC, 0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     BC
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#endif
+	JP	(HL)
+
+	ENDMOD
+
+
+	MODULE	?BANK_CALL_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked RST call
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	A=bank, HL=address
+;	Operation:		
+;	Returns with:	 	
+;	Modified registers:	AF
+;	Stack usage:		2 bytes
+;	SZ_flags valid for:	not valid
+;	Carry:			not valid
+;
+;	Description:	jumps to the bank switcher function
+;
+;------------------------------------------------------------------------------
+
+	ASEG
+
+	PUBLIC	?BANK_CALL_L08
+	EXTERN	?BANK_CALL_DIRECT_L08
+
+;	ORG		28H		; Banked call using RST 28
+?BANK_CALL_L08
+	JP	?BANK_CALL_DIRECT_L08
+
+	ENDMOD
+
+
+	MODULE	?BANK_CALL_DIRECT_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked call
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	A=bank, HL=address
+;	Operation:		
+;	Returns with:	 	
+;	Modified registers:	
+;	Stack usage:		2 bytes
+;	SZ_flags valid for:	not valid
+;	Carry:			not valid
+;
+;	Description:	Saves old bank number and switches to the new bank
+;
+;------------------------------------------------------------------------------
+
+	RSEG	RCODE
+
+	PUBLIC	?BANK_CALL_DIRECT_L08
+
+#if !proc64180
+;	EXTERN	?BANK_SWITCH_PORT_L08
+        EXTERN  PORT_7FFD
+        EXTERN  PORT_TABLE
+#endif
+
+?BANK_CALL_DIRECT_L08
+
+	PUSH	HL
+#if proc64180
+	IN0	H,(BBR_addr)	                ; Get BBR
+	OUT0	(BBR_addr),A	                ; Set BBR
+#else
+	LD	L,A
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;IN	A,(?BANK_SWITCH_PORT_L08)
+	LD      A,(PORT_7FFD)
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	LD	H,A
+	LD	A,L
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;OUT	(?BANK_SWITCH_PORT_L08),A
+	PUSH    BC
+        LD      BC, PORT_TABLE
+        ADD     A,C
+        LD      C,A
+        LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)
+        LD      BC, 0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     BC
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#endif
+	EX	(SP),HL				; Save old bank-number
+	JP	(HL)
+
+	ENDMOD
+
+
+	MODULE	?BANK_LEAVE_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked return
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	none
+;	Operation:		
+;	Returns with:	 	A = current bank
+;	Modified registers:	A
+;	Stack usage:		0 bytes
+;	SZ_flags valid for:	not valid
+;	Carry:			not valid
+;
+;	Description:	Jumps to the bank return switcher function
+;
+;------------------------------------------------------------------------------
+
+	ASEG
+
+	PUBLIC	?BANK_LEAVE_L08
+	EXTERN	?BANK_LEAVE_DIRECT_L08
+
+;	ORG	18H
+?BANK_LEAVE_L08
+	JP	?BANK_LEAVE_DIRECT_L08
+
+	ENDMOD
+
+
+	MODULE	?BANK_LEAVE_DIRECT_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked return
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	none
+;	Operation:		
+;	Returns with:	 	A = current bank
+;	Modified registers:	A
+;	Stack usage:		0 bytes
+;	SZ_flags valid for:	not valid
+;	Carry:			not valid
+;
+;	Description:	Switches back to old bank and returns
+;
+;------------------------------------------------------------------------------
+
+	RSEG	RCODE
+
+	PUBLIC	?BANK_LEAVE_DIRECT_L08
+	PUBLIC	?BANK_FAST_LEAVE_L08
+
+#if !proc64180
+;	EXTERN	?BANK_SWITCH_PORT_L08
+        EXTERN  PORT_7FFD
+#endif
+
+?BANK_LEAVE_DIRECT_L08
+	LD	SP,IX
+	POP	IX
+	POP	DE
+	POP	BC
+?BANK_FAST_LEAVE_L08
+	POP	AF				; Get old bank-number
+#if proc64180
+	OUT0	(BBR_addr),A	                ; Set BBR
+#else
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;OUT	(?BANK_SWITCH_PORT_L08),A
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	PUSH    BC
+	LD      BC,0x7FFD
+	LD      (PORT_7FFD),A
+	OUT     (C),A
+	POP     BC
+#endif
+	RET
+
+	ENDMOD
+
+
+	MODULE	?BANK_LEAVE_32_L08
+;------------------------------------------------------------------------------
+;
+;	Function:	banked return
+;
+;	Created:	18/Mar/94 IJAR
+;
+;	Input registers:  	none
+;	Operation:		
+;	Returns with:	 	A = current bank
+;	Modified registers:	A
+;	Stack usage:		0 bytes
+;	SZ_flags valid for:	not valid
+;	Carry:			not valid
+;
+;	Description:	Switches back to old bank and returns
+;
+;------------------------------------------------------------------------------
+
+	RSEG	RCODE
+
+	PUBLIC	?BANK_LEAVE_32_L08
+
+#if !proc64180
+;	EXTERN	?BANK_SWITCH_PORT_L08
+        EXTERN  PORT_7FFD
+#endif
+
+?BANK_LEAVE_32_L08
+	LD	SP,IX
+	POP	IX
+	POP	DE
+	INC	SP				; do not restore BC
+	INC	SP
+	POP	AF				; Get old bank-number
+#if proc64180
+	OUT0	(BBR_addr),A	                ; Set BBR
+#else
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;OUT	(?BANK_SWITCH_PORT_L08),A
+	PUSH    BC
+	LD      BC,0x7FFD
+	LD      (PORT_7FFD),A
+	OUT     (C),A
+	POP     BC
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#endif
+	RET
+ENDMOD
+
+
+MODULE getCharAt
+  RSEG	RCODE
+  PUBLIC getCharAt
+  EXTERN PORT_7FFD
+  EXTERN PORT_TABLE
+; PARAMS:
+; DE - low part address
+; C  - LOGICAL PAGE NUMBER
+; RETURS:
+
+getCharAt:
+; 15.	
+; 16.	non_banked char getCharAt(long address24)
+; 17.	{
+
+        LD      A,(PORT_7FFD) ; STORE CURRENT BANK TO STACK
+        PUSH    AF
+        	
+	LD      A,C           ; CALCULATE BANK ITEM OFFSET (FROM LOGICAL PAGE)
+	LD      BC,PORT_TABLE
+	ADD     A,C
+	LD      C,A
+	LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)        ; A - BANK
+        
+        LD      BC,0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        
+        EX      DE,HL
+        LD      L,(HL)        ; BYTE AT LOCATION
+        
+        POP     AF
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        
+        LD      A,L	
+        
+	RET
+
+	ENDMOD
+	
+	MODULE setCharAt
+	RSEG RCODE
+	PUBLIC setCharAt
+	EXTERN PORT_7FFD
+        EXTERN PORT_TABLE
+;PARAMS:
+;DE-low part address
+;C- LOGICAL PAGE NUMBER
+;B-BYTE TO BE STORED AT LOCATION
+; RETURNS:
+; NO:
+;	
+;	non_banked void setCharAt(long mix)
+;
+setCharAt:
+        LD      A,(PORT_7FFD)
+        PUSH    AF
+        PUSH    BC
+        LD      A,C
+        LD      BC,PORT_TABLE
+        ADD     A,C
+        LD      C,A
+        LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)
+        
+        LD      BC,0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     AF
+        
+        LD      (DE),A
+        
+        POP     AF
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+	
+	END
+
+
+
+	
+
