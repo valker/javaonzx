@@ -1,13 +1,11 @@
-#summary Javaonzx project summary
+#summary One-sentence summary of this page.
 
 = Introduction =
 
-Add your content here.
+Javaonzx is the research project of JVM implementation on Sinclair ZX-Spectrum 128 machine.
 
 
 = Details =
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+[http://www.iar.com/p1149/p1149_eng.php IAR C compiler] is used. 
+
