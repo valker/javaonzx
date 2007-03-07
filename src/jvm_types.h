@@ -9,6 +9,12 @@
 
 #include "common.h"
 
+struct ClassInfo_ {
+  char a;
+};
+
+typedef struct ClassInfo_ ClassInfo;
+
 ////////////////////////////////////
 // constant pool member structure
 typedef struct {
