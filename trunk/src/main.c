@@ -23,31 +23,21 @@ u1 class_image[]={
 #include "test_class.h"
 };
 non_banked void readHmem(u1* dest, far_ptr classImage, int count);
+non_banked far_ptr hAlloc(u2 size);
+non_banked void writeHmem(const void* src, far_ptr dest, int count);
+non_banked void hmemInit(const u1* pages, u1 pageCounter);
 
-bool checkSignature(far_ptr* classImage) {
-  static const u1 signature[] = {0xCA,0xFE,0xBA,0xBE};
-  u1 buf[sizeof(signature)];
-  readHmem(buf,*classImage,sizeof(signature));
-  *classImage += sizeof(signature);
-  return 0 == memcmp(buf, signature, sizeof(signature));
-}
 
-far_ptr loadClass(far_ptr classImage)
-{
-  ClassInfo classInfo;
-  if(checkSignature(&classImage)) {
-    far_ptr p = hAlloc(sizeof(ClassInfo));
-    if(p) {
-      writeHmem(&classInfo, p, sizeof(classInfo));
-    } else {
-      // throw OutOfMemory
-    }
-    return p;
-  }
-  return 0;
+void initSystemClasses(void){
 }
 
 void main(void)
 {
-  far_ptr class_info = loadClass(address_24_of(&class_image));
+  // logical pages
+  static const u1 pages[] = {2,3,4};
+  hmemInit(&pages[0], sizeof(pages));
+  initSystemClasses();
+  {
+    far_ptr class_info = loadClass(address_24_of(&class_image), "v/t");
+  }
 }
