@@ -24,6 +24,7 @@ MODULE VARS
   PUBLIC PORT_7FFD
   PUBLIC PORT_TABLE
   PUBLIC BANK_PORT_INIT
+  PUBLIC PORT_TABLE_LENGTH
 
 BANK_PORT_INIT EQU 0x18
 
@@ -38,6 +39,9 @@ PORT_TABLE  DEFB 0x18 ;0
             DEFB 0x1B ;3
             DEFB 0x1C ;4
             DEFB 0x1E ;6
+PORT_TABLE_END
+
+PORT_TABLE_LENGTH EQU PORT_TABLE_END - PORT_TABLE
 
 ENDMOD
 
@@ -504,6 +508,72 @@ setCharAt:
         LD      (PORT_7FFD),A
         OUT     (C),A
 	
+	ENDMOD
+	
+	MODULE  getMMUState
+	PUBLIC  getMMUState
+	RSEG RCODE
+	EXTERN PORT_7FFD
+;PARAMS:  none
+;RETURNS   A - state of mmu
+getMMUState:
+        LD A,(PORT_7FFD)
+        RET
+        ENDMOD
+        
+        MODULE restoreMMUState
+        PUBLIC restoreMMUState
+        RSEG RCODE
+        EXTERN PORT_7FFD
+;PARAMS:  E - state of mmu
+;RETURNS: none
+restoreMMUState:
+        PUSH    BC
+        LD      BC,0x7FFD
+        LD      A,E
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     BC
+        RET
+        ENDMOD
+
+        MODULE getPageCount
+        PUBLIC getPageCount
+        RSEG RCODE
+        EXTERN PORT_TABLE_LENGTH
+;PARAMS:  none
+;RETURNS: A - page count
+getPageCount:
+        LD      A,PORT_TABLE_LENGTH
+        RET
+        ENDMOD
+
+        MODULE setPage
+        PUBLIC setPage
+        RSEG RCODE
+        EXTERN PORT_TABLE_LENGTH
+        EXTERN PORT_TABLE
+        EXTERN PORT_7FFD
+;PARAMS:  none
+;RETURNS: A - page count
+setPage:
+        PUSH    BC
+        LD      BC, PORT_TABLE
+        ADD     A,C
+        LD      C,A
+        LD      A,0
+        ADC     A,B
+        LD      B,A
+        LD      A,(BC)
+        LD      BC, 0x7FFD
+        LD      (PORT_7FFD),A
+        OUT     (C),A
+        POP     BC
+        RET
+        ENDMOD
+
+        
+        
 	END
 
 
