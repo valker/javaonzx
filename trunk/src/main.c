@@ -4,40 +4,75 @@
    author  : valker
 */
 
+#ifdef ZX
 #include <intrz80.h>
+#endif
 #include <string.h>
 #include "common.h"
 #include "zx128hmem.h"
 #include "jvm_types.h"
+#include "seh.h"
+#include "garbage.h"
+#include "root_code.h"
+
+int RequestedHeapSize;
 
 u1 class_image[]={
-//package v;
-//public class t {
-//    private t() {
-//    }
-//
-//    public static void main(final String[] param) {
-//        System.out.println("Hello world!");
-//    }
-//}
 #include "test_class.h"
 };
-non_banked void readHmem(u1* dest, far_ptr classImage, int count);
-non_banked far_ptr hAlloc(u2 size);
-non_banked void writeHmem(const void* src, far_ptr dest, int count);
-non_banked void hmemInit(const u1* pages, u1 pageCounter);
 
 
-void initSystemClasses(void){
+void initSystemClasses(void) {
 }
+
+static struct throwableScopeStruct ThrowableScopeStruct = {
+   /* env =           */ 0,
+   /* throwable =     */ 0,
+   /* tmpRootsCount = */ 0,
+   /* outer =         */ 0
+};
+THROWABLE_SCOPE ThrowableScope = &ThrowableScopeStruct;
+void* VMScope = NULL;
+int   VMExitCode = 0;
+
+
+
+void fatalVMError(const char* p) {
+  VM_EXIT(128);
+}
+
+void InitializeGlobals(void);
+void InitializeMemoryManagement(void);
+
+void initEmulator(void);
 
 void main(void)
 {
   // logical pages
+#ifdef ZX
+#pragma memory=constseg(ROOT_CONST)
+#endif
   static const u1 pages[] = {2,3,4};
+#ifdef ZX
+#pragma memory=default
+#endif
+  
+
+#ifndef ZX
+  initEmulator();
+#endif
+
+  RequestedHeapSize = 0x4000 - 2 * sizeof(HighMemoryDescriptor);
   hmemInit(&pages[0], sizeof(pages));
   initSystemClasses();
   {
-    far_ptr class_info = loadClass(address_24_of(&class_image), "v/t");
+    TRY {
+      VM_START {
+        InitializeGlobals();
+        InitializeMemoryManagement();
+      } VM_FINISH(value) {
+      } VM_END_FINISH
+    } CATCH(e) {
+    } END_CATCH
   }
 }
