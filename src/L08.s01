@@ -34,11 +34,13 @@ PORT_7FFD DEFS 1
 
 ;
 RSEG CDATA0
-PORT_TABLE  DEFB 0x18 ;0
-            DEFB 0x19 ;1
-            DEFB 0x1B ;3
-            DEFB 0x1C ;4
-            DEFB 0x1E ;6
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;                PORT VALUE     PHYSICAL    LOGICAL
+PORT_TABLE  DEFB 0x18           ;0          0
+            DEFB 0x19           ;1          1
+            DEFB 0x1B           ;3          2
+            DEFB 0x1C           ;4          3
+            DEFB 0x1E           ;6          4
 PORT_TABLE_END
 
 PORT_TABLE_LENGTH EQU PORT_TABLE_END - PORT_TABLE
@@ -555,8 +557,9 @@ getPageCount:
         EXTERN PORT_TABLE
         EXTERN PORT_7FFD
 ;PARAMS:  none
-;RETURNS: A - page count
+;RETURNS: E - page count
 setPage:
+        LD      A,E
         PUSH    BC
         LD      BC, PORT_TABLE
         ADD     A,C

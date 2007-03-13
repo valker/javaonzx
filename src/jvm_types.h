@@ -8,10 +8,13 @@
 #define JVM_TYPES_INCLUDED
 
 #include "common.h"
+#include "zx128hmem.h"
 
 struct ClassInfo_ {
   char a;
 };
+
+typedef unsigned long cell;
 
 typedef struct ClassInfo_ ClassInfo;
 
@@ -85,7 +88,15 @@ typedef struct  {
  * System-wide structure declarations
  *=======================================================================*/
  
- #define far_ptr_of(_ptr_type_) union { struct { _ptr_type_ typed_ptr_; u1 page_; u1 reserved; } fields_; far_ptr common_ptr_; }
+ #define far_ptr_of(_ptr_type_) \
+ union {                        \
+  struct {                      \
+    u2 near_ptr_;               \
+    u1 page_;                   \
+    u1 reserved;                \
+  } fields_;                    \
+  far_ptr common_ptr_;          \
+ }
  
  
  typedef struct classStruct*                  CLASS;

@@ -7,6 +7,10 @@
 #ifndef COMMON_H_INCLUDED
 #define COMMON_H_INCLUDED
 
+#ifndef ZX
+#define non_banked
+#endif
+
 typedef unsigned char   u1;
 typedef signed char     i1;
 typedef unsigned short  u2;
@@ -14,9 +18,9 @@ typedef signed   short  i2;
 typedef unsigned long   u4;
 
 typedef enum {
-    true = 1,
-    false = 0
-} bool;
+    TRUE = 1,
+    FALSE = 0
+} BOOL;
 
 typedef union {
   u2  word;
