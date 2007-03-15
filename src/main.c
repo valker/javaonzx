@@ -14,6 +14,7 @@
 #include "seh.h"
 #include "garbage.h"
 #include "root_code.h"
+#include "class.h"
 
 int RequestedHeapSize;
 
@@ -34,6 +35,11 @@ static struct throwableScopeStruct ThrowableScopeStruct = {
 THROWABLE_SCOPE ThrowableScope = &ThrowableScopeStruct;
 void* VMScope = NULL;
 int   VMExitCode = 0;
+
+
+/* Shared string buffer that is used internally by the VM */
+/* NOTE: STRINGBUFFERSIZE is defined in main.h */
+char str_buffer[STRINGBUFFERSIZE];
 
 
 
@@ -70,6 +76,7 @@ void main(void)
       VM_START {
         InitializeGlobals();
         InitializeMemoryManagement();
+        InitializeJavaSystemClasses();
       } VM_FINISH(value) {
       } VM_END_FINISH
     } CATCH(e) {

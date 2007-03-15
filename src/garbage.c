@@ -16,9 +16,9 @@
 int TemporaryRootsLength;
 int GlobalRootsLength;
 int gcInProgress;
-union cellOrPointer TemporaryRoots[MAXIMUM_TEMPORARY_ROOTS];
-union cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
-far_ptr/*POINTERLIST_FAR*/     CleanupRoots;
+/*union*/ cellOrPointer TemporaryRoots[MAXIMUM_TEMPORARY_ROOTS];
+/*union*/ cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
+POINTERLIST_FAR         CleanupRoots;
 
 /* EXTERNALS */
 void InitializeHeap(void);
@@ -100,10 +100,24 @@ void InitializeMemoryManagement(void) {
   gcInProgress = 0;
   InitializeHeap();
   index = 0;
-  GlobalRoots[index++].cellpp = (cell **)&AllThreads;
-  GlobalRoots[index++].cellpp = (cell **)&CleanupRoots;
+  //GlobalRoots[index++].cellpp = (cell **)&AllThreads;
+  //GlobalRoots[index++].cellpp = (cell **)&CleanupRoots;
+  GlobalRoots[index++] = AllThreads.common_ptr_;
+  GlobalRoots[index++] = CleanupRoots.common_ptr_;
+
   GlobalRootsLength = index;
   TemporaryRootsLength = 0;
 //  CleanupRoots = (POINTERLIST)callocObject(SIZEOF_POINTERLIST(CLEANUP_ROOT_SIZE), GCT_POINTERLIST);
-  CleanupRoots = /*(POINTERLIST_FAR)*/ callocObject(sizeof(struct pointerListStruct) * CLEANUP_ROOT_SIZE, GCT_POINTERLIST);
+  CleanupRoots.common_ptr_ = callocObject(sizeof(struct pointerListStruct) * CLEANUP_ROOT_SIZE, GCT_POINTERLIST);
 }
+far_ptr mallocObject(u2 size, GCT_ObjectType type)
+/*  Remember: size is given in CELLs rather than bytes */
+{
+    far_ptr result = mallocHeapObject(size, type);
+    if (result == 0) {
+        THROW(OutOfMemoryObject);
+    }
+
+    return result;
+}
+

@@ -6,4 +6,4 @@
 
 #include "jvm_types.h"
 
-extern THREAD AllThreads;       /* List of all threads */
+extern THREAD_FAR AllThreads;       /* List of all threads */
