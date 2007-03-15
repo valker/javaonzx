@@ -17,6 +17,10 @@
 ;
 ;------------------------------------------------------------------------------
 ; MODIFIED BY VALKER ON 26.02.2007 TO SUPPORT ZX-SPECTRUM 128 ENVIRONMENT
+; PORT_7FFD - contains copy of IO port 0x7FFD (spectrum extended memory port)
+; PORT_TABLE - table of convertion logical pages to value to be written to port
+; BANK_PORT_INIT - value to be written to port at initialization stage
+; PORT_TABLE_LENGTH - number of logical pages available for program
 ;------------------------------------------------------------------------------
 
 MODULE VARS

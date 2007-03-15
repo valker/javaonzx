@@ -14,7 +14,8 @@ struct ClassInfo_ {
   char a;
 };
 
-typedef unsigned long cell;
+//typedef unsigned long cell;
+typedef far_ptr cell;
 
 typedef struct ClassInfo_ ClassInfo;
 
@@ -25,20 +26,20 @@ typedef struct {
     u1 *info;
 } cp_info;
 
-// constant pool tags
-enum {
-  CONSTANT_Class 	        = 7 ,
-  CONSTANT_Fieldref 	        = 9 ,
-  CONSTANT_Methodref 	        = 10 ,
-  CONSTANT_InterfaceMethodref   = 11 ,
-  CONSTANT_String 	        = 8 ,
-  CONSTANT_Integer 	        = 3 ,
-  CONSTANT_Float 	        = 4 ,
-  CONSTANT_Long 	        = 5 ,
-  CONSTANT_Double 	        = 6 ,
-  CONSTANT_NameAndType 	        = 12 ,
-  CONSTANT_Utf8 	        = 1
-};
+//// constant pool tags
+//enum {
+//  CONSTANT_Class 	        = 7 ,
+//  CONSTANT_Fieldref 	        = 9 ,
+//  CONSTANT_Methodref 	        = 10 ,
+//  CONSTANT_InterfaceMethodref   = 11 ,
+//  CONSTANT_String 	        = 8 ,
+//  CONSTANT_Integer 	        = 3 ,
+//  CONSTANT_Float 	        = 4 ,
+//  CONSTANT_Long 	        = 5 ,
+//  CONSTANT_Double 	        = 6 ,
+//  CONSTANT_NameAndType 	        = 12 ,
+//  CONSTANT_Utf8 	        = 1
+//};
 
 /////////////////////////////////////////
 // attribute info structure
@@ -48,22 +49,22 @@ typedef struct  {
     u1 *info;
 } attribute_info;
 
-/////////////////////////////////////////
-// field/method/class access flags
-enum {
-  ACC_PUBLIC 	    = 0x0001, 	//Declared public; may be accessed from outside its package. 
-  ACC_PRIVATE 	    = 0x0002, 	//Declared private; usable only within the defining class. 
-  ACC_PROTECTED     = 0x0004, 	//Declared protected; may be accessed within subclasses. 
-  ACC_STATIC 	    = 0x0008, 	//Declared static. 
-  ACC_FINAL 	    = 0x0010, 	//Declared final; no further assignment after initialization. 
-  ACC_SYNCHRONIZED  = 0x0020, 	//Declared synchronized; invocation is wrapped in a monitor lock. 
-  ACC_VOLATILE 	    = 0x0040, 	//Declared volatile; cannot be cached. 
-  ACC_TRANSIENT     = 0x0080, 	//Declared transient; not written or read by a persistent object manager.
-  ACC_NATIVE 	    = 0x0100, 	//Declared native; implemented in a language other than Java. 
-  ACC_ABSTRACT 	    = 0x0400, 	//Declared abstract; no implementation is provided. 
-  ACC_STRICT 	    = 0x0800 	//Declared strictfp; floating-point mode is FP-strict
-};
-
+///////////////////////////////////////////
+//// field/method/class access flags
+//enum {
+//  ACC_PUBLIC 	    = 0x0001, 	//Declared public; may be accessed from outside its package. 
+//  ACC_PRIVATE 	    = 0x0002, 	//Declared private; usable only within the defining class. 
+//  ACC_PROTECTED     = 0x0004, 	//Declared protected; may be accessed within subclasses. 
+//  ACC_STATIC 	    = 0x0008, 	//Declared static. 
+//  ACC_FINAL 	    = 0x0010, 	//Declared final; no further assignment after initialization. 
+//  ACC_SYNCHRONIZED  = 0x0020, 	//Declared synchronized; invocation is wrapped in a monitor lock. 
+//  ACC_VOLATILE 	    = 0x0040, 	//Declared volatile; cannot be cached. 
+//  ACC_TRANSIENT     = 0x0080, 	//Declared transient; not written or read by a persistent object manager.
+//  ACC_NATIVE 	    = 0x0100, 	//Declared native; implemented in a language other than Java. 
+//  ACC_ABSTRACT 	    = 0x0400, 	//Declared abstract; no implementation is provided. 
+//  ACC_STRICT 	    = 0x0800 	//Declared strictfp; floating-point mode is FP-strict
+//};
+//
 /////////////////////////////////////////
 // method info structure
 typedef struct {
@@ -90,12 +91,12 @@ typedef struct  {
  
  #define far_ptr_of(_ptr_type_) \
  union {                        \
+  far_ptr common_ptr_;          \
   struct {                      \
     u2 near_ptr_;               \
     u1 page_;                   \
     u1 reserved;                \
   } fields_;                    \
-  far_ptr common_ptr_;          \
  }
  
  
@@ -234,7 +235,10 @@ typedef struct  {
  typedef FRAME              *                 FRAME_HANDLE;
  typedef far_ptr_of(FRAME_HANDLE)             FRAME_HANDLE_FAR;
 
- typedef const char*        *                 CONST_CHAR_HANDLE;
+ typedef const char *                         PSTR;
+ typedef far_ptr_of(PSTR)                     PSTR_FAR;
+
+ typedef PSTR_FAR           *                 CONST_CHAR_HANDLE;
  typedef far_ptr_of(CONST_CHAR_HANDLE)        CONST_CHAR_HANDLE_FAR;
 
  typedef unsigned char*     *                 UNSIGNED_CHAR_HANDLE;
@@ -253,10 +257,10 @@ typedef struct  {
 
 
  
- #define BitSizeToByteSize(n)    (((n) + 7) >> 3)
- #define ByteSizeToCellSize(n)   (((n) + (CELL - 1)) >> log2CELL)
- #define StructSizeInCells(structName) ((sizeof(struct structName) + 3) >> 2)
- #define UnionSizeInCells(structName) ((sizeof(union structName) + 3) >> 2)
+// #define BitSizeToByteSize(n)    (((n) + 7) >> 3)
+// #define ByteSizeToCellSize(n)   (((n) + (CELL - 1)) >> log2CELL)
+// #define StructSizeInCells(structName) ((sizeof(struct structName) + 3) >> 2)
+// #define UnionSizeInCells(structName) ((sizeof(union structName) + 3) >> 2)
  
  /* Field and Method key types */
  typedef unsigned short NameKey;
@@ -270,4 +274,16 @@ typedef struct  {
      unsigned long i;
  } NameTypeKey;
  
+#define STRINGBUFFERSIZE  512
+
+ /* Shared string buffer that is used internally by the VM */
+ extern char str_buffer[STRINGBUFFERSIZE];
+
+#define SHORTSIZE 2
+#define CELL  4        /* Size of a java word (= 4 bytes) */
+
+// TODO:
+#define inAnyHeap(p) (1)
+
+
 #endif

@@ -19,24 +19,29 @@
 #define CLEANUP_ROOT_SIZE 16
 #endif
 
-
+#define unhand(x) (*(x))
 
 extern int TemporaryRootsLength;
 extern int GlobalRootsLength;
-extern union cellOrPointer TemporaryRoots[MAXIMUM_TEMPORARY_ROOTS];
-extern union cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
+extern /*union*/ cellOrPointer TemporaryRoots[MAXIMUM_TEMPORARY_ROOTS];
+extern /*union*/ cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
 
 #define START_TEMPORARY_ROOTS   { int _tmp_roots_ = TemporaryRootsLength;
 #define END_TEMPORARY_ROOTS      TemporaryRootsLength = _tmp_roots_;  }
 
 #define IS_TEMPORARY_ROOT(_var_, _value_)                                \
-  _var_ = (_var_ = _value_,                                              \
-        TemporaryRoots[TemporaryRootsLength++].cellp = (cell *)&_var_,   \
+  _var_ = (_var_.common_ptr_ = _value_.common_ptr_,                                              \
+        TemporaryRoots[TemporaryRootsLength++] = _var_.common_ptr_,      \
         _var_)
 
 #define DECLARE_TEMPORARY_ROOT(_type_, _var_, _value_)                   \
      _type_ IS_TEMPORARY_ROOT(_var_, _value_)
 
+void makeGlobalRoot(cell** object);
+far_ptr mallocHeapObject(u2 size, GCT_ObjectType type);
+far_ptr mallocObject(u2 size, GCT_ObjectType type);
+void garbageCollect(i2 moreMemory);
+far_ptr callocPermanentObject(u2 size);
 
 
 #endif
