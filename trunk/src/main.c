@@ -67,7 +67,6 @@ void main(void)
 #ifndef ZX
   initEmulator();
 #endif
-
   RequestedHeapSize = 0x4000 - 2 * sizeof(HighMemoryDescriptor);
   hmemInit(&pages[0], sizeof(pages));
   initSystemClasses();

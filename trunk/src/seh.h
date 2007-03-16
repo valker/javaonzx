@@ -10,6 +10,7 @@
 
 #include <setjmp.h>
 #include "jvm_types.h"
+#include "garbage.h"
 
 /*
  * This struct models the nesting of try/catch scopes.

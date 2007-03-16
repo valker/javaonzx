@@ -24,9 +24,11 @@ typedef far_ptr cellOrPointer;
 
 /* POINTERLIST */
 struct pointerListStruct {
-  long  length;
+  u2  length;
   cellOrPointer data[1];
 };
+
+#define POINTERLIST_LENGTH offsetof(struct pointerListStruct, length)
 
 typedef union monitorOrHashCode { 
     void *address;          /* low 2 bits MHC_MONITOR,  
@@ -47,6 +49,8 @@ struct throwableInstanceStruct {
     ARRAY_FAR   backtrace;
 };
 
+#define THROWABLE_MESSAGE offsetof(struct throwableInstanceStruct, message)
+
 /* CLASS */
 struct classStruct {
     COMMON_OBJECT_INFO(INSTANCE_CLASS_FAR)
@@ -55,19 +59,22 @@ struct classStruct {
     * class.  the baseName for arrays is [...[L<className>; or
     * [...[<primitive type>, where [...[ indicates the appropriate
     * number of left brackets for the depth */
-    UString_FAR packageName;            /* Everything before the final '/' */
-    UString_FAR baseName;               /* Everything after the final '/' */
-    CLASS_FAR   next;                   /* Next item in this hash table bucket */
+    UString_FAR packageName;    /* Everything before the final '/' */
+    UString_FAR baseName;       /* Everything after the final '/' */
+    CLASS_FAR   next;           /* Next item in this hash table bucket */
 
-    unsigned short accessFlags;     /* Access information */
-    unsigned short key;             /* Class key */
+    u2 accessFlags;             /* Access information */
+    u2 key;                     /* Class key */
 };
 
 #define CLASS_OF_CLASS offsetof(struct classStruct, ofClass)
 #define CLASS_KEY offsetof(struct classStruct, key)
+#define CLASS_ACCESSFLAGS offsetof(struct classStruct, accessFlags)
 
 typedef void (*NativeFuncPtr) (INSTANCE_HANDLE_FAR);
 
+typedef u2* PWORD;
+typedef far_ptr_of(PWORD) PWORD_FAR;
 
 /* INSTANCE_CLASS */
 struct instanceClassStruct {
@@ -78,15 +85,20 @@ struct instanceClassStruct {
     CONSTANTPOOL_FAR constPool;         /* Pointer to constant pool */
     FIELDTABLE_FAR  fieldTable;         /* Pointer to instance variable table */
     METHODTABLE_FAR methodTable;        /* Pointer to virtual method table */
-    unsigned short* ifaceTable;         /* Pointer to interface table */
+    PWORD_FAR ifaceTable;               /* Pointer to interface table */
     POINTERLIST_FAR staticFields;       /* Holds static fields of the class */
-    u2   instSize;                   /* The size of class instances */
-    u2 status;                       /* Class readiness status */
+    u2   instSize;                      /* The size of class instances */
+    u2 status;                          /* Class readiness status */
     THREAD_FAR initThread;              /* Thread performing class initialization */
     NativeFuncPtr finalizer;            /* Pointer to finalizer */
 };
 
-#define INSTANCE_CLASS_STATUS offsetof(struct instanceClassStruct, status)
+#define INSTANCE_CLASS_STATUS       offsetof(struct instanceClassStruct, status)
+#define INSTANCE_CLASS_SUPERCLASS   offsetof(struct instanceClassStruct, superClass)
+#define INSTANCE_CLASS_INSTSIZE     offsetof(struct instanceClassStruct, instSize)
+#define INSTANCE_CLASS_IFACETABLE   offsetof(struct instanceClassStruct, ifaceTable)
+#define INSTANCE_CLASS_CONSTPOOL    offsetof(struct instanceClassStruct, constPool)
+#define INSTANCE_CLASS_FIELDTABLE   offsetof(struct instanceClassStruct, fieldTable)
 
 /* ARRAY_CLASS */
 struct arrayClassStruct {
@@ -126,6 +138,17 @@ struct arrayStruct {
 };
 
 
+extern INSTANCE_CLASS_FAR JavaLangObject;    /* Pointer to java.lang.Object */
+extern INSTANCE_CLASS_FAR JavaLangClass;     /* Pointer to java.lang.Class */
+extern INSTANCE_CLASS_FAR JavaLangString;    /* Pointer to java.lang.String */
+extern INSTANCE_CLASS_FAR JavaLangSystem;    /* Pointer to java.lang.System */
+extern INSTANCE_CLASS_FAR JavaLangThread;    /* Pointer to java.lang.Thread */
+extern INSTANCE_CLASS_FAR JavaLangThrowable; /* Pointer to java.lang.Throwable */
+extern INSTANCE_CLASS_FAR JavaLangError;     /* Pointer to java.lang.Error */
+extern INSTANCE_CLASS_FAR JavaLangOutOfMemoryError; /* java.lang.OutOfMemoryError */
+extern ARRAY_CLASS_FAR    JavaLangCharArray; /* Array of characters */
+
+
 
 extern NameTypeKey initNameAndType;
 extern NameTypeKey clinitNameAndType;
@@ -146,6 +169,10 @@ char typeCodeToSignature(char typeCode);
 void InitializeJavaSystemClasses(void);
 CLASS_FAR getRawClass(PSTR_FAR name);
 PSTR_FAR  getClassName_inBuffer(CLASS_FAR clazz, PSTR_FAR resultBuffer);
+u2 readClassStatus(INSTANCE_CLASS_FAR clazz);
+STRING_INSTANCE_FAR instantiateString(PSTR_FAR string, u2 length);
+char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, int lth);
+INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz);
 
 #define RunCustomCodeMethod_MAX_STACK_SIZE 4
 

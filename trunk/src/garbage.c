@@ -111,7 +111,6 @@ void InitializeMemoryManagement(void) {
   CleanupRoots.common_ptr_ = callocObject(sizeof(struct pointerListStruct) * CLEANUP_ROOT_SIZE, GCT_POINTERLIST);
 }
 far_ptr mallocObject(u2 size, GCT_ObjectType type)
-/*  Remember: size is given in CELLs rather than bytes */
 {
     far_ptr result = mallocHeapObject(size, type);
     if (result == 0) {
@@ -121,3 +120,7 @@ far_ptr mallocObject(u2 size, GCT_ObjectType type)
     return result;
 }
 
+far_ptr mallocBytes(u2 size)
+{
+    return mallocObject(size, GCT_NOPOINTERS);
+}
