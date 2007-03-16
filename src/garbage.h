@@ -40,8 +40,10 @@ extern /*union*/ cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
 void makeGlobalRoot(cell** object);
 far_ptr mallocHeapObject(u2 size, GCT_ObjectType type);
 far_ptr mallocObject(u2 size, GCT_ObjectType type);
+far_ptr mallocBytes(u2 size);
 void garbageCollect(i2 moreMemory);
 far_ptr callocPermanentObject(u2 size);
+far_ptr callocObject(u2 size, GCT_ObjectType type);
 
 
 #endif

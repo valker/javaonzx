@@ -9,6 +9,28 @@
 #define POOL_H_INCLUDED
 
 
+/* Each of these represents one entry in the constant pool */
+union constantPoolEntryStruct {
+    struct { 
+        unsigned short classIndex;
+        unsigned short nameTypeIndex;
+    }               method;  /* Also used by Fields */
+    CLASS_FAR           clazz;
+    INTERNED_STRING_INSTANCE_FAR String;
+    //cell           *cache;   /* Either clazz or String */
+    //cell            integer;
+    long            length;
+    NameTypeKey     nameTypeKey;
+    NameKey         nameKey;
+    UString_FAR     ustring;
+};
+
+
+struct constantPoolStruct { 
+    union constantPoolEntryStruct entries[1];
+};
+
+
 /*=========================================================================
 * Array types / type indices from JVM Specification (p. 320)
 *=======================================================================*/
@@ -64,5 +86,6 @@
 #define ACC_DOUBLE        0x4000  /* Field uses two words */
 #define ACC_POINTER       0x8000  /* Field is a pointer   */
 
+void  verifyClassAccess(CLASS_FAR targetClass, INSTANCE_CLASS_FAR fromClass);
 
 #endif

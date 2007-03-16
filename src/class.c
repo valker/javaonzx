@@ -48,8 +48,7 @@ NameTypeKey mainNameAndType;   /* void main(String[]) */
 METHOD_FAR RunCustomCodeMethod;
 
 
-CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length)
-{
+CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length) {
     CLASS_FAR result;
     //    const char *start = unhand(nameH);
     PSTR_FAR start;
@@ -109,18 +108,16 @@ CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length)
     }
 }
 
-CLASS_FAR
-getClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length)
-{
+CLASS_FAR getClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length) {
     CLASS_FAR clazz = getRawClassX(nameH, offset, length);
     if (!IS_ARRAY_CLASS(clazz)) {
-        short status;
         INSTANCE_CLASS_FAR icf;
-        readHmem(&status, clazz.common_ptr_ + INSTANCE_CLASS_STATUS, sizeof(status));
+        u2 status;
         icf.common_ptr_ = clazz.common_ptr_;
-        if (/*((INSTANCE_CLASS)clazz)->status*/status == CLASS_RAW) {
+        status = readClassStatus(icf);
+        if (status == CLASS_RAW) {
             loadClassfile(icf, TRUE);
-        } else if (/*((INSTANCE_CLASS)clazz)->status*/status == CLASS_ERROR) {
+        } else if (status == CLASS_ERROR) {
             START_TEMPORARY_ROOTS
                 //DECLARE_TEMPORARY_ROOT(char*, className, getClassName(clazz));
                 DECLARE_TEMPORARY_ROOT(PSTR_FAR, className, getClassName(clazz));
