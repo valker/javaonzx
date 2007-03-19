@@ -18,8 +18,8 @@ struct methodStruct {
                 STACKMAP_FAR pointerMap;
                 POINTERLIST_FAR verifierMap;
             } stackMaps;
-            unsigned short codeLength;
-            unsigned short maxStack; 
+            u2 codeLength;
+            u2 maxStack; 
             /* frameSize should be here, rather than in the generic part, */
             /* but this gives us better packing of the bytes */
         } java;
@@ -28,10 +28,10 @@ struct methodStruct {
             void *info;
         } native;
     } u;
-    long  accessFlags;          /* Access indicators (public/private etc.) */
+    u4  accessFlags;          /* Access indicators (public/private etc.) */
     INSTANCE_CLASS_FAR ofClass; /* Backpointer to the class owning the field */
-    unsigned short frameSize;   /* Method frame size (arguments+local vars) */
-    unsigned short argCount;    /* Method argument (parameter) count */
+    u2 frameSize;   /* Method frame size (arguments+local vars) */
+    u2 argCount;    /* Method argument (parameter) count */
 };
 
 /*  FIELD */
@@ -56,6 +56,8 @@ struct fieldTableStruct {
 
 NameTypeKey getNameAndTypeKey(PSTR_FAR name, PSTR_FAR type);
 METHOD_FAR getSpecialMethod(INSTANCE_CLASS_FAR thisClass, NameTypeKey key);
+MethodTypeKey change_MethodSignature_to_Key(CONST_CHAR_HANDLE_FAR, i2 offset, i2 length);
+FieldTypeKey change_FieldSignature_to_Key(CONST_CHAR_HANDLE_FAR, i2 offset, i2 length);
 
 #define FIELD_KEY_ARRAY_SHIFT 13
 #define MAX_FIELD_KEY_ARRAY_DEPTH 7

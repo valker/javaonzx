@@ -46,5 +46,41 @@
 #define KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH \
     "Class file size does not match"
 
+#define KVM_MSG_FLOATING_POINT_NOT_SUPPORTED \
+    "Floating point not supported"
+
+#define KVM_MSG_BAD_64BIT_CONSTANT \
+    "Bad 64-bit constant"
+
+#define KVM_MSG_INVALID_CONSTANT_POOL_ENTRY \
+    "Invalid constant pool entry"
+
+#define KVM_MSG_BAD_FIELD_OR_METHOD_REFERENCE \
+    "Bad field or method reference"
+
+#define KVM_MSG_BAD_NAME_OR_TYPE_REFERENCE \
+    "Bad name/type reference"
+
+#define KVM_MSG_BAD_UTF8_STRING \
+    "Bad Utf8 string"
+
+#define KVM_MSG_BAD_UTF8_INDEX \
+    "Bad Utf8 index"
+
+#define KVM_MSG_BAD_NAME \
+    "Bad class, field or method name"
+
+#define KVM_MSG_BAD_METHOD_SIGNATURE \
+    "Bad method signature"
+
+#define KVM_MSG_BAD_FIELD_SIGNATURE \
+    "Bad field signature"
+
+#define KVM_MSG_BAD_MAGIC_VALUE \
+    "Bad magic value"
+
+#define KVM_MSG_BAD_VERSION_INFO \
+    "Bad version information"
+
 #endif
 

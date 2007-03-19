@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <intrz80.h>
 #include "jvm_types.h"
 #include "loader.h"
 #include "root_code.h"
@@ -29,6 +30,13 @@ static void loadInterfaces(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR
 static void loadFields(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass, POINTERLIST_HANDLE_FAR StringPoolH);
 static void loadMethods(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass, POINTERLIST_HANDLE_FAR StringPoolH);
 static void ignoreAttributes(FILEPOINTER_HANDLE_FAR ClassFile, POINTERLIST_HANDLE_FAR StringPool);
+static void verifyUTF8String(far_ptr bytes, unsigned short length);
+static PSTR_FAR getUTF8String(POINTERLIST_HANDLE_FAR StringPoolH, u2 index);
+static void verifyName(PSTR_FAR name, enum validName_type type);
+static u2 verifyMethodType(PSTR_FAR name, PSTR_FAR signature);
+static void verifyFieldType(PSTR_FAR type);
+static PSTR_FAR skipOverFieldType(PSTR_FAR string, BOOL void_okay, u2 length);
+static PSTR_FAR skipOverFieldName(PSTR_FAR string, BOOL slash_okay, u2 length);
 
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz) {
     return getWordAt(clazz.common_ptr_ + INSTANCE_CLASS_STATUS);
@@ -119,12 +127,12 @@ void loadClassfile(INSTANCE_CLASS_FAR InitiatingClass, BOOL fatalErrorIfFail) {
         */
         while ((clazz = findSuperMostUnlinked(InitiatingClass)).common_ptr_ != 0) {
 
-#if INCLUDEDEBUGCODE
-            if (traceclassloading || traceclassloadingverbose) {
-                fprintf(stdout, "Linking class: '%s'\n",
-                    getClassName((CLASS)clazz));
-            }
-#endif
+//#if INCLUDEDEBUGCODE
+//            if (traceclassloading || traceclassloadingverbose) {
+//                fprintf(stdout, "Linking class: '%s'\n",
+//                    getClassName((CLASS)clazz));
+//            }
+//#endif
 
             /*
             * Link the superclass.
@@ -135,7 +143,7 @@ void loadClassfile(INSTANCE_CLASS_FAR InitiatingClass, BOOL fatalErrorIfFail) {
                 */
                 if (clazz.common_ptr_ != JavaLangObject.common_ptr_) {
                     PSTR_FAR msg;
-                    msg.common_ptr_ = address_24_of(KVM_MSG_BAD_SUPERCLASS);
+                    msg.common_ptr_ = address_24_of(&KVM_MSG_BAD_SUPERCLASS);
                     raiseExceptionWithMessage(ClassFormatError, msg);
                 }
                 /*
@@ -320,21 +328,21 @@ void loadClassfile(INSTANCE_CLASS_FAR InitiatingClass, BOOL fatalErrorIfFail) {
             //clazz->status = CLASS_LINKED;
             setWordAt(clazz.common_ptr_ + INSTANCE_CLASS_STATUS, CLASS_LINKED);
 
-#if ENABLE_JAVA_DEBUGGER
-            if (vmDebugReady) {
-                CEModPtr cep = GetCEModifier();
-                cep->loc.classID = GET_CLASS_DEBUGGERID(&clazz->clazz);
-                cep->threadID = getObjectID((OBJECT)CurrentThread->javaThread);
-                cep->eventKind = JDWP_EventKind_CLASS_PREPARE;
-                insertDebugEvent(cep);
-            }
-#endif
-
-#if INCLUDEDEBUGCODE
-            if (traceclassloading || traceclassloadingverbose) {
-                fprintf(stdout, "Class linked ok\n");
-            }
-#endif /* INCLUDEDEBUGCODE */
+//#if ENABLE_JAVA_DEBUGGER
+//            if (vmDebugReady) {
+//                CEModPtr cep = GetCEModifier();
+//                cep->loc.classID = GET_CLASS_DEBUGGERID(&clazz->clazz);
+//                cep->threadID = getObjectID((OBJECT)CurrentThread->javaThread);
+//                cep->eventKind = JDWP_EventKind_CLASS_PREPARE;
+//                insertDebugEvent(cep);
+//            }
+//#endif
+//
+//#if INCLUDEDEBUGCODE
+//            if (traceclassloading || traceclassloadingverbose) {
+//                fprintf(stdout, "Class linked ok\n");
+//            }
+//#endif /* INCLUDEDEBUGCODE */
         }
 
     } CATCH(e) {
@@ -418,11 +426,11 @@ static void loadRawClass(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail)
         DECLARE_TEMPORARY_ROOT(FILEPOINTER_FAR, ClassFile, fp);
         i1 ch;
 
-#if INCLUDEDEBUGCODE
-    if (traceclassloading || traceclassloadingverbose) {
-        Log->loadClass(getClassName((CLASS)CurrentClass));
-    }
-#endif
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloading || traceclassloadingverbose) {
+//        Log->loadClass(getClassName((CLASS)CurrentClass));
+//    }
+//#endif
     /* If the requested class is not found, we will throw the
     * appropriate exception or error, and include the class
     * name as the message.
@@ -457,16 +465,16 @@ static void loadRawClass(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail)
         }
     } else {
 
-#if ROMIZING
-        UString uPackageName = CurrentClass->clazz.packageName;
-        if (uPackageName != NULL) {
-            char *name = UStringInfo(uPackageName);
-            if (IS_RESTRICTED_PACKAGE_NAME(name)) {
-                raiseExceptionWithMessage(NoClassDefFoundError,
-                    KVM_MSG_CREATING_CLASS_IN_SYSTEM_PACKAGE);
-            }
-        }
-#endif
+//#if ROMIZING
+//        UString uPackageName = CurrentClass->clazz.packageName;
+//        if (uPackageName != NULL) {
+//            char *name = UStringInfo(uPackageName);
+//            if (IS_RESTRICTED_PACKAGE_NAME(name)) {
+//                raiseExceptionWithMessage(NoClassDefFoundError,
+//                    KVM_MSG_CREATING_CLASS_IN_SYSTEM_PACKAGE);
+//            }
+//        }
+//#endif
 
         /* This flag is true only when class loading is performed */
         /* from Class.forName() native method. Only the initiating */
@@ -477,7 +485,7 @@ static void loadRawClass(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail)
 
         {
             FILEPOINTER_HANDLE_FAR fphf;
-            fphf.common_ptr_ = &ClassFile;
+            fphf.common_ptr_ = (far_ptr)&ClassFile;
             {
                 /* Load version info and magic value */
                 loadVersionInfo(fphf);
@@ -496,7 +504,7 @@ static void loadRawClass(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail)
 
                 {
                     POINTERLIST_HANDLE_FAR plhf;
-                    plhf.common_ptr_ = &StringPool;
+                    plhf.common_ptr_ = (far_ptr)&StringPool;
                     /* Load field information */
                     loadFields(fphf, CurrentClass, plhf);
 
@@ -525,21 +533,21 @@ static void loadRawClass(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail)
         //CurrentClass->clazz.ofClass = JavaLangClass;
         setDWordAt(CurrentClass.common_ptr_, JavaLangClass.common_ptr_);
 
-#if ENABLE_JAVA_DEBUGGER
-        if (vmDebugReady) {
-            CEModPtr cep = GetCEModifier();
-            cep->loc.classID = GET_CLASS_DEBUGGERID(&CurrentClass->clazz);
-            cep->threadID = getObjectID((OBJECT)CurrentThread->javaThread);
-            cep->eventKind = JDWP_EventKind_CLASS_LOAD;
-            insertDebugEvent(cep);
-        }
-#endif
+//#if ENABLE_JAVA_DEBUGGER
+//        if (vmDebugReady) {
+//            CEModPtr cep = GetCEModifier();
+//            cep->loc.classID = GET_CLASS_DEBUGGERID(&CurrentClass->clazz);
+//            cep->threadID = getObjectID((OBJECT)CurrentThread->javaThread);
+//            cep->eventKind = JDWP_EventKind_CLASS_LOAD;
+//            insertDebugEvent(cep);
+//        }
+//#endif
 
-#if INCLUDEDEBUGCODE
-        if (traceclassloading || traceclassloadingverbose) {
-            fprintf(stdout, "Class loaded ok\n");
-        }
-#endif /* INCLUDEDEBUGCODE */
+//#if INCLUDEDEBUGCODE
+//        if (traceclassloading || traceclassloadingverbose) {
+//            fprintf(stdout, "Class loaded ok\n");
+//        }
+//#endif /* INCLUDEDEBUGCODE */
     }
     END_TEMPORARY_ROOTS
 }
@@ -587,11 +595,11 @@ static POINTERLIST_FAR loadConstantPool(FILEPOINTER_HANDLE_FAR ClassFileH, INSTA
     POINTERLIST_FAR result;
     int lastNonUtfIndex = -1;
 
-#if INCLUDEDEBUGCODE
-    if (traceclassloadingverbose) {
-        fprintf(stdout, "Loading constant pool\n");
-    }
-#endif /* INCLUDEDEBUGCODE */
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Loading constant pool\n");
+//    }
+//#endif /* INCLUDEDEBUGCODE */
 
     /* The classfile constant pool is initially loaded into two temporary
     * structures - one for all the CONSTANT_Utf8 entries (StringPool)
@@ -615,95 +623,116 @@ static POINTERLIST_FAR loadConstantPool(FILEPOINTER_HANDLE_FAR ClassFileH, INSTA
 
                 //StringPool->length = constantCount;
                 setWordAt(StringPool.common_ptr_ + POINTERLIST_LENGTH, constantCount);
-#define RAW_POOL(i)      (RawPool[i])
-#define CP_ENTRY(i)      (ConstantPool->entries[i])
+//#define RAW_POOL(i)      (RawPool[i])
+//#define CP_ENTRY(i)      (ConstantPool->entries[i])
 
     /* Read the constant pool entries from the class file */
     for (cpIndex = 1; cpIndex < constantCount; cpIndex++) {
         unsigned char tag = loadByte(ClassFileH);
-        unsigned char *Tags = (unsigned char *)(&RawPool[constantCount]);
-        Tags[cpIndex] = tag;
+        //unsigned char *Tags = (unsigned char *)(&RawPool[constantCount]);
+        PSTR_FAR Tags;
+        Tags.common_ptr_ = RawPool.common_ptr_ + constantCount * sizeof(union constantPoolEntryStruct);
+        //Tags[cpIndex] = tag;
+        setCharAt(Tags.common_ptr_ + cpIndex, tag);
 
         switch (tag) {
             case CONSTANT_String:
             case CONSTANT_Class: {
                 /* A single 16-bit entry that points to a UTF string */
-                unsigned short nameIndex = loadShort(ClassFileH);
-                RAW_POOL(cpIndex).integer = nameIndex;
+                u2 nameIndex = loadShort(ClassFileH);
+                //RAW_POOL(cpIndex).integer = nameIndex;
+                setWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), nameIndex);
                 break;
-                                 }
+            }
 
             case CONSTANT_Fieldref:
             case CONSTANT_Methodref:
             case CONSTANT_InterfaceMethodref: {
                 /* Two 16-bit entries */
-                unsigned short classIndex = loadShort(ClassFileH);
-                unsigned short nameTypeIndex = loadShort(ClassFileH);
-                RAW_POOL(cpIndex).method.classIndex = classIndex;
-                RAW_POOL(cpIndex).method.nameTypeIndex = nameTypeIndex;
+                u2 classIndex = loadShort(ClassFileH);
+                u2 nameTypeIndex = loadShort(ClassFileH);
+                //RAW_POOL(cpIndex).method.classIndex = classIndex;
+                setDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), classIndex);
+                //RAW_POOL(cpIndex).method.nameTypeIndex = nameTypeIndex;
+                setDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct) + 2, nameTypeIndex);
                 break;
                                               }
 
             case CONSTANT_Float:
-#if !IMPLEMENTS_FLOAT
+//#if !IMPLEMENTS_FLOAT
                 fatalError(KVM_MSG_FLOATING_POINT_NOT_SUPPORTED);
-#endif
+//#endif
             case CONSTANT_Integer:
                 {
                     /* A single 32-bit value */
-                    long value = loadCell(ClassFileH);
-                    RAW_POOL(cpIndex).integer = value;
+                    u4 value = loadCell(ClassFileH);
+                    //RAW_POOL(cpIndex).integer = value;
+                    setDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), value);
+
                     break;
                 }
 
             case CONSTANT_Double:
-#if !IMPLEMENTS_FLOAT
+//#if !IMPLEMENTS_FLOAT
                 fatalError(KVM_MSG_FLOATING_POINT_NOT_SUPPORTED);
-#endif
+//#endif
             case CONSTANT_Long:
                 /* A 64-bit value */
-                RAW_POOL(cpIndex).integer = loadCell(ClassFileH);
+
+                //RAW_POOL(cpIndex).integer = loadCell(ClassFileH);
+                setDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), loadCell(ClassFileH));
                 cpIndex++;
                 if (cpIndex >= constantCount) {
-                    raiseExceptionWithMessage(ClassFormatError,
-                        KVM_MSG_BAD_64BIT_CONSTANT);
+                    PSTR_FAR msg;
+                    msg.common_ptr_ = address_24_of(KVM_MSG_BAD_64BIT_CONSTANT);
+                    raiseExceptionWithMessage(ClassFormatError, msg);
                 }
                 /* set this location in the Tags array to 0 so it's
                 * flagged as a bogus location if some TCK test decides
                 * to read from the middle of this long constant pool entry.
                 */
-                Tags[cpIndex] = 0;
-                RAW_POOL(cpIndex).integer = loadCell(ClassFileH);
+                //Tags[cpIndex] = 0;
+                setCharAt(Tags.common_ptr_ + cpIndex, 0);
+                //RAW_POOL(cpIndex).integer = loadCell(ClassFileH);
+                setDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), loadCell(ClassFileH));
                 break;
 
             case CONSTANT_NameAndType: {
                 /* Like Fieldref, etc */
-                unsigned short nameIndex = loadShort(ClassFileH);
-                unsigned short typeIndex = loadShort(ClassFileH);
+                u2 nameIndex = loadShort(ClassFileH);
+                u2 typeIndex = loadShort(ClassFileH);
                 /* In the second pass, below, these will be replaced with the
                 * actual nameKey and typeKey.  Currently, they are indices
                 * to items in the constant pool that may not yet have been
                 * loaded */
-                RAW_POOL(cpIndex).nameTypeKey.nt.nameKey = nameIndex;
-                RAW_POOL(cpIndex).nameTypeKey.nt.typeKey = typeIndex;
+                //RAW_POOL(cpIndex).nameTypeKey.nt.nameKey = nameIndex;
+                setWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), nameIndex);
+                //RAW_POOL(cpIndex).nameTypeKey.nt.typeKey = typeIndex;
+                setWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct) + 2, typeIndex);
                 break;
                                        }
 
             case CONSTANT_Utf8: {
-                unsigned short length = loadShort(ClassFileH);
-                /* This allocation may invalidate ClassFile */
-                char *string = mallocBytes(length + 1);
-                STRING_POOL(cpIndex) =  string;
-                loadBytes(ClassFileH, string, length);
-                string[length] = '\0';
-
-                verifyUTF8String(string, length);
-                                }
-                                break;
+                    u2 length = loadShort(ClassFileH);
+                    /* This allocation may invalidate ClassFile */
+                    //char *string = mallocBytes(length + 1);
+                    far_ptr string = mallocBytes(length + 1);
+                    //STRING_POOL(cpIndex) =  string;
+                    setDWordAt(StringPool.common_ptr_ + POINTERLIST_DATA + cpIndex * sizeof(cellOrPointer), string);
+                    loadBytes(ClassFileH, string, length);
+                    //string[length] = '\0';
+                    setCharAt(string + length, 0);
+                    verifyUTF8String(string, length);
+                }
+                break;
 
             default:
-                raiseExceptionWithMessage(ClassFormatError,
-                    KVM_MSG_INVALID_CONSTANT_POOL_ENTRY);
+                {
+                    PSTR_FAR msg;
+                    msg.common_ptr_ = address_24_of(KVM_MSG_INVALID_CONSTANT_POOL_ENTRY);
+                    raiseExceptionWithMessage(ClassFormatError, msg);
+
+                }
                 break;
         }
 
@@ -716,128 +745,173 @@ static POINTERLIST_FAR loadConstantPool(FILEPOINTER_HANDLE_FAR ClassFileH, INSTA
         /* Allocate memory for all the entries plus the array of tag bytes
         * at the end.
         */
-        int numberOfEntries = lastNonUtfIndex + 1;
-        int tableSize =
-            numberOfEntries + ((numberOfEntries + (CELL - 1)) >> log2CELL);
-#if USESTATIC
-        IS_TEMPORARY_ROOT(ConstantPool,
-            (CONSTANTPOOL)callocObject(tableSize, GCT_NOPOINTERS));
-#else
-        ConstantPool = (CONSTANTPOOL)callocPermanentObject(tableSize);
-#endif
-        CONSTANTPOOL_LENGTH(ConstantPool) = numberOfEntries;
-        CurrentClass->constPool = ConstantPool;
+        u2 numberOfEntries = lastNonUtfIndex + 1;
+        u2 tableSize = numberOfEntries/* + ((numberOfEntries + (CELL - 1)) >> log2CELL)*/;
+//#if USESTATIC
+//        IS_TEMPORARY_ROOT(ConstantPool,
+//            (CONSTANTPOOL)callocObject(tableSize, GCT_NOPOINTERS));
+//#else
+        ConstantPool.common_ptr_ = callocPermanentObject(tableSize);
+//#endif
+        //CONSTANTPOOL_LENGTH(ConstantPool) = numberOfEntries;
+        setWordAt(ConstantPool.common_ptr_, numberOfEntries);
+        //CurrentClass->constPool = ConstantPool;
+        setDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_CONSTPOOL, ConstantPool.common_ptr_);
     }
 
     /* Now create the constant pool entries */
     for (cpIndex = 1; cpIndex < constantCount; cpIndex++) {
         /* These can move between iterations of the loop */
-        unsigned char *Tags = (unsigned char *)(&RawPool[constantCount]);
-        unsigned char *CPTags = CONSTANTPOOL_TAGS(ConstantPool);
+        //unsigned char *Tags = (unsigned char *)(&RawPool[constantCount]);
+        PSTR_FAR Tags;
+        PSTR_FAR CPTags;
+        u1 tag;
+        Tags.common_ptr_ = RawPool.common_ptr_ + constantCount * sizeof(union constantPoolEntryStruct);
 
-        unsigned char tag = Tags[cpIndex];
+        //unsigned char *CPTags = CONSTANTPOOL_TAGS(ConstantPool);
+        CPTags.common_ptr_ = ConstantPool.common_ptr_ + sizeof(union constantPoolEntryStruct) * getDWordAt(ConstantPool.common_ptr_);
+
+        //unsigned char tag = Tags[cpIndex];
+        tag = getCharAt(Tags.common_ptr_ + cpIndex);
         if (cpIndex <= lastNonUtfIndex) {
-            CPTags[cpIndex] = tag;
+            //CPTags[cpIndex] = tag;
+            setCharAt(CPTags.common_ptr_ + cpIndex, tag);
         }
 
         switch (tag) {
 
             case CONSTANT_Class: {
-                unsigned short nameIndex =
-                    (unsigned short)RAW_POOL(cpIndex).integer;
+                u2 nameIndex = getWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct));
+                POINTERLIST_HANDLE_FAR plhf;
+                plhf.common_ptr_ = (far_ptr)&StringPool;
                 START_TEMPORARY_ROOTS
-                    DECLARE_TEMPORARY_ROOT(const char *, name,
-                getUTF8String(&StringPool, nameIndex));
-                verifyName(name, LegalClass);
-                CP_ENTRY(cpIndex).clazz =
-                    getRawClassX(&name, 0, strlen(name));
+                    DECLARE_TEMPORARY_ROOT(PSTR_FAR, name, getUTF8String(plhf, nameIndex));
+                    verifyName(name, LegalClass);
+                    //CP_ENTRY(cpIndex).clazz = getRawClassX(&name, 0, strlen(name));
+                    {
+                        CONST_CHAR_HANDLE_FAR cchf;
+                        cchf.common_ptr_ = (far_ptr)&name;
+                        setDWordAt(ConstantPool.common_ptr_ + sizeof(union constantPoolEntryStruct) * cpIndex, getRawClassX(cchf, 0, hstrlen(name.common_ptr_)).common_ptr_);
+                    }
                 END_TEMPORARY_ROOTS
                     break;
                                  }
 
             case CONSTANT_String: {
-                unsigned short nameIndex =
-                    (unsigned short)RAW_POOL(cpIndex).integer;
-                char *name = getUTF8String(&StringPool, nameIndex);
-                INTERNED_STRING_INSTANCE string =
-                    internString(name, strlen(name));
-                CP_ENTRY(cpIndex).String = string;
+                u2 nameIndex = getWordAt(RawPool.common_ptr_ + cpIndex)/* (unsigned short)RAW_POOL(cpIndex).integer*/;
+                POINTERLIST_HANDLE_FAR plhf;
+                plhf.common_ptr_ = (far_ptr)&StringPool;
+                {
+                    PSTR_FAR name = getUTF8String(plhf, nameIndex);
+                    INTERNED_STRING_INSTANCE_FAR string = internString(name, hstrlen(name.common_ptr_));
+                    //CP_ENTRY(cpIndex).String = string;
+                    setDWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), string.common_ptr_);
+                }
                 break;
                                   }
             case CONSTANT_Fieldref:
             case CONSTANT_Methodref:
             case CONSTANT_InterfaceMethodref: {
                 /* Two 16-bit entries */
-                unsigned short classIndex = RAW_POOL(cpIndex).method.classIndex;
-                unsigned short nameTypeIndex =RAW_POOL(cpIndex).method.nameTypeIndex;
+                //u2 classIndex = RAW_POOL(cpIndex).method.classIndex;
+                //u2 nameTypeIndex =RAW_POOL(cpIndex).method.nameTypeIndex;
+                const u2 classIndex = getWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct));
+                const u2 nameTypeIndex = getWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct) + 2);
                 if (classIndex >= constantCount ||
-                    Tags[classIndex] != CONSTANT_Class ||
+                    getCharAt(Tags.common_ptr_ + classIndex) != CONSTANT_Class ||
                     nameTypeIndex >= constantCount ||
-                    Tags[nameTypeIndex] != CONSTANT_NameAndType) {
-                        raiseExceptionWithMessage(ClassFormatError,
-                            KVM_MSG_BAD_FIELD_OR_METHOD_REFERENCE);
+                    getCharAt(Tags.common_ptr_ + nameTypeIndex) != CONSTANT_NameAndType) {
+                        PSTR_FAR msg;
+                        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_FIELD_OR_METHOD_REFERENCE);
+                        raiseExceptionWithMessage(ClassFormatError, msg);
                 } else {
-                    unsigned short nameIndex =
-                        RAW_POOL(nameTypeIndex).nameTypeKey.nt.nameKey;
-                    unsigned short typeIndex =
-                        RAW_POOL(nameTypeIndex).nameTypeKey.nt.typeKey;
-                    char* name = getUTF8String(&StringPool, nameIndex);
-                    char* type = getUTF8String(&StringPool, typeIndex);
-                    if (   (tag == CONSTANT_Fieldref && type[0] == '(')
-                        || (tag != CONSTANT_Fieldref && type[0] != '(')
-                        || (tag != CONSTANT_Fieldref &&
-                        !strcmp(name, "<clinit>"))) {
-                            raiseExceptionWithMessage(ClassFormatError,
-                                KVM_MSG_BAD_NAME_OR_TYPE_REFERENCE);
+                    //unsigned short nameIndex = RAW_POOL(nameTypeIndex).nameTypeKey.nt.nameKey;
+                    //unsigned short typeIndex = RAW_POOL(nameTypeIndex).nameTypeKey.nt.typeKey;
+                    const u2 nameIndex = getWordAt(RawPool.common_ptr_ + nameTypeIndex * sizeof(union constantPoolEntryStruct));
+                    const u2 typeIndex = getWordAt(RawPool.common_ptr_ + nameTypeIndex * sizeof(union constantPoolEntryStruct) + 2);
+                    POINTERLIST_HANDLE_FAR plhf;
+                    plhf.common_ptr_ = (far_ptr)&StringPool;
+                    {
+                        PSTR_FAR name = getUTF8String(plhf, nameIndex);
+                        PSTR_FAR type = getUTF8String(plhf, typeIndex);
+                        if (   (tag == CONSTANT_Fieldref && getCharAt(type.common_ptr_) == '(')
+                            || (tag != CONSTANT_Fieldref && getCharAt(type.common_ptr_) != '(')
+                            || (tag != CONSTANT_Fieldref && !hstrcmp(name.common_ptr_, address_24_of("<clinit>")))) {
+                                PSTR_FAR msg;
+                                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_NAME_OR_TYPE_REFERENCE);
+                                raiseExceptionWithMessage(ClassFormatError, msg);
+                        }
+                        
+                        //CP_ENTRY(cpIndex) = RAW_POOL(cpIndex);
+                        hmemcpy(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct),
+                            RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct),
+                            sizeof(union constantPoolEntryStruct));
                     }
-                    CP_ENTRY(cpIndex) = RAW_POOL(cpIndex);
                 }
                 break;
                                               }
 
             case CONSTANT_Double:
-#if !IMPLEMENTS_FLOAT
+//#if !IMPLEMENTS_FLOAT
                 fatalError(KVM_MSG_FLOATING_POINT_NOT_SUPPORTED);
-#endif
+//#endif
             case CONSTANT_Long:
-                CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                //CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                setDWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), getDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct)));
                 cpIndex++;
-                CPTags[cpIndex] = 0;
-                CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                //CPTags[cpIndex] = 0;
+                setCharAt(CPTags.common_ptr_ + cpIndex, 0);
+                //CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                setDWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), getDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct)));
                 break;
 
             case CONSTANT_Float:
-#if !IMPLEMENTS_FLOAT
+//#if !IMPLEMENTS_FLOAT
                 fatalError(KVM_MSG_FLOATING_POINT_NOT_SUPPORTED);
-#endif
+//#endif
             case CONSTANT_Integer:
-                CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                //CP_ENTRY(cpIndex).integer = RAW_POOL(cpIndex).integer;
+                setDWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), getDWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct)));
                 break;
 
             case CONSTANT_NameAndType: {
-                unsigned short nameIndex = RAW_POOL(cpIndex).nameTypeKey.nt.nameKey;
-                unsigned short typeIndex = RAW_POOL(cpIndex).nameTypeKey.nt.typeKey;
+                //unsigned short nameIndex = RAW_POOL(nameTypeIndex).nameTypeKey.nt.nameKey;
+                //unsigned short typeIndex = RAW_POOL(nameTypeIndex).nameTypeKey.nt.typeKey;
+                const u2 nameIndex = getWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct));
+                const u2 typeIndex = getWordAt(RawPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct) + 2);
+                POINTERLIST_HANDLE_FAR plhf;
+                plhf.common_ptr_ = (far_ptr)&StringPool;
                 START_TEMPORARY_ROOTS
-                    DECLARE_TEMPORARY_ROOT(const char *, name,
-                getUTF8String(&StringPool, nameIndex));
-                DECLARE_TEMPORARY_ROOT(const char *, type,
-                getUTF8String(&StringPool, typeIndex));
-                NameKey nameKey;
-                unsigned short typeKey;
-                if (type[0] == '(') {
-                    verifyName(name, LegalMethod);
-                    verifyMethodType(name, type);
-                    typeKey = change_MethodSignature_to_Key(&type, 0,
-                        strlen(type));
-                } else {
-                    verifyName(name, LegalField);
-                    verifyFieldType(type);
-                    typeKey = change_FieldSignature_to_Key(&type, 0,
-                        strlen(type));
-                }
-                nameKey = change_Name_to_Key(&name, 0, strlen(name));
-                CP_ENTRY(cpIndex).nameTypeKey.nt.nameKey = nameKey;
-                CP_ENTRY(cpIndex).nameTypeKey.nt.typeKey = typeKey;
+                    DECLARE_TEMPORARY_ROOT(PSTR_FAR, name, getUTF8String(plhf, nameIndex));
+                    DECLARE_TEMPORARY_ROOT(PSTR_FAR, type, getUTF8String(plhf, typeIndex));
+                    NameKey nameKey;
+                    u2 typeKey;
+                    if (getCharAt(type.common_ptr_) == '(') {
+                        verifyName(name, LegalMethod);
+                        verifyMethodType(name, type);
+                        {
+                            CONST_CHAR_HANDLE_FAR cchf;
+                            cchf.common_ptr_ = (far_ptr)&type;
+                            typeKey = change_MethodSignature_to_Key(cchf, 0, hstrlen(type.common_ptr_));
+                        }
+                    } else {
+                        verifyName(name, LegalField);
+                        verifyFieldType(type);
+                        {
+                            CONST_CHAR_HANDLE_FAR cchf;
+                            cchf.common_ptr_ = (far_ptr)&type;
+                            typeKey = change_FieldSignature_to_Key(cchf, 0, hstrlen(type.common_ptr_));
+                        }
+                    }
+                    {
+                        CONST_CHAR_HANDLE_FAR cchf;
+                        cchf.common_ptr_ = (far_ptr)&name;
+                        nameKey = change_Name_to_Key(cchf, 0, hstrlen(name.common_ptr_));
+               }
+                    //CP_ENTRY(cpIndex).nameTypeKey.nt.nameKey = nameKey;
+                    //CP_ENTRY(cpIndex).nameTypeKey.nt.typeKey = typeKey;
+                    setWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), nameKey);
+                    setWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct) + 2, typeKey);
                 END_TEMPORARY_ROOTS
                     break;
                                        }
@@ -845,14 +919,19 @@ static POINTERLIST_FAR loadConstantPool(FILEPOINTER_HANDLE_FAR ClassFileH, INSTA
             case CONSTANT_Utf8:
                 /* We don't need these after loading time.  So why bother */
                 if (cpIndex <= lastNonUtfIndex) {
-                    CP_ENTRY(cpIndex).integer = 0;
-                    CPTags[cpIndex] = 0;
+//                    CP_ENTRY(cpIndex).integer = 0;
+                    setWordAt(ConstantPool.common_ptr_ + cpIndex * sizeof(union constantPoolEntryStruct), 0);
+
+                    //CPTags[cpIndex] = 0;
+                    setCharAt(CPTags.common_ptr_ + cpIndex, 0);
                 }
                 break;
 
-            default:
-                raiseExceptionWithMessage(ClassFormatError,
-                    KVM_MSG_INVALID_CONSTANT_POOL_ENTRY);
+            default:{
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_INVALID_CONSTANT_POOL_ENTRY);
+                raiseExceptionWithMessage(ClassFormatError,msg);
+                }
                 break;
         }
     }
@@ -861,4 +940,351 @@ static POINTERLIST_FAR loadConstantPool(FILEPOINTER_HANDLE_FAR ClassFileH, INSTA
         }
     END_TEMPORARY_ROOTS
         return result;
+}
+
+/*=========================================================================
+* FUNCTION:      verifyUTF8String()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate a UTF8 string
+* INTERFACE:
+*   parameters:  pointer to UTF8 string, length
+*   returns:     nothing
+*   throws:      ClassFormatError if the string is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void verifyUTF8String(far_ptr bytes, unsigned short length)
+{
+    unsigned int i;
+    for (i=0; i<length; i++) {
+        unsigned int c = ((unsigned char *)bytes)[i];
+        if (c == 0) /* no embedded zeros */
+            goto failed;
+        if (c < 128)
+            continue;
+        switch (c >> 4) {
+        default:
+            break;
+
+        case 0x8: case 0x9: case 0xA: case 0xB: case 0xF:
+            goto failed;
+
+        case 0xC: case 0xD:
+            /* 110xxxxx  10xxxxxx */
+            i++;
+            if (i >= length)
+                goto failed;
+            if ((getCharAt(bytes + i) & 0xC0) == 0x80)
+                break;
+            goto failed;
+
+        case 0xE:
+            /* 1110xxxx 10xxxxxx 10xxxxxx */
+            i += 2;
+            if (i >= length)
+                goto failed;
+            if (((getCharAt(bytes + i - 1) & 0xC0) == 0x80) &&
+                ((getCharAt(bytes + i) & 0xC0) == 0x80))
+                break;
+            goto failed;
+        } /* end of switch */
+    }
+    return;
+
+failed:
+    {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_UTF8_STRING);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+
+    }
+}
+
+/*=========================================================================
+* FUNCTION:      getUTF8String()
+* TYPE:          private class file load operation
+* OVERVIEW:      get a UTF8 string from string pool, check index validity
+* INTERFACE:
+*   parameters:  String pool, index
+*   returns:     Pointer to UTF8 string
+*   throws:      ClassFormatError if the index is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static PSTR_FAR getUTF8String(POINTERLIST_HANDLE_FAR StringPoolH, u2 index)
+{
+    POINTERLIST_FAR StringPool;
+    PSTR_FAR r;
+    StringPool.common_ptr_ = getDWordAt(StringPoolH.common_ptr_);
+    if (index >= getWordAt(StringPool.common_ptr_) ||
+        getDWordAt(StringPool.common_ptr_ + POINTERLIST_DATA + index * sizeof(cellOrPointer)) == 0) {
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_BAD_UTF8_INDEX);
+            raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+    r.common_ptr_ = getDWordAt(StringPool.common_ptr_ + POINTERLIST_DATA + index * sizeof(cellOrPointer));
+    return r;
+}
+
+
+/*=========================================================================
+* FUNCTION:      verifyName()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate a class, field, or method name
+* INTERFACE:
+*   parameters:  pointer to a name, name type
+*   returns:     a boolean indicating the validity of the name
+*   throws:      ClassFormatError if the name is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void verifyName(PSTR_FAR name, enum validName_type type)
+{
+    if (!isValidName(name,type)) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_NAME);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+}
+
+/*=========================================================================
+* FUNCTION:      verifyMethodType()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate method signature
+* INTERFACE:
+*   parameters:  method name, signature
+*   returns:     argument size
+*   throws:      ClassFormatError if the signature is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static u2 verifyMethodType(PSTR_FAR name, PSTR_FAR signature)
+{
+    u2 args_size = 0;
+    PSTR_FAR p = signature;
+    u2 length = hstrlen(signature.common_ptr_);
+    PSTR_FAR next_p;
+
+    /* The first character must be a '(' */
+    if ((length > 0) && (getCharAt(p.common_ptr_++) == '(')) {
+        length--;
+        /* Skip over however many legal field signatures there are */
+        while ((length > 0) &&
+            (next_p = skipOverFieldType(p, FALSE, length)).common_ptr_ != 0) {
+                args_size++;
+                if (getCharAt(p.common_ptr_) == 'J' || getCharAt(p.common_ptr_) == 'D')
+                    args_size++;
+                length -= (next_p.common_ptr_ - p.common_ptr_);
+                p = next_p;
+        }
+        /* The first non-signature thing better be a ')' */
+        if ((length > 0) && (getCharAt(p.common_ptr_++) == ')')) {
+            length --;
+            if (hstrlen(name.common_ptr_) > 0 && getCharAt(name.common_ptr_) == '<') {
+                /* All internal methods must return void */
+                if ((length == 1) && (getCharAt(p.common_ptr_) == 'V'))
+                    return args_size;
+            } else {
+                /* Now, we better just have a return value. */
+                next_p =  skipOverFieldType(p, TRUE, length);
+                if (next_p.common_ptr_ != 0 && (length == next_p.common_ptr_ - p.common_ptr_))
+                    return args_size;
+            }
+        }
+    }
+    {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_METHOD_SIGNATURE);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+    return 0; /* never reached */
+}
+
+
+/*=========================================================================
+* FUNCTION:      verifyFieldType()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate field signature
+* INTERFACE:
+*   parameters:  field signature
+*   returns:     nothing
+*   throws:      ClassFormatError if the signature is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void verifyFieldType(PSTR_FAR type)
+{
+    u2 length = hstrlen(type.common_ptr_);
+    PSTR_FAR p = skipOverFieldType(type, FALSE, length);
+
+    if (p.common_ptr_ == 0 || p.common_ptr_ - type.common_ptr_ != length) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_FIELD_SIGNATURE);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+}
+
+
+
+/*=========================================================================
+* FUNCTION:      skipOverFieldType()
+* TYPE:          private class file load operation
+* OVERVIEW:      skip over a legal field signature in a get a given string
+* INTERFACE:
+*   parameters:  string: a string in which the field signature is skipped
+*                slash_okay: is '/' OK.
+*                length: length of the string
+*   returns:     what's remaining after skipping the field signature
+*=======================================================================*/
+static PSTR_FAR skipOverFieldType(PSTR_FAR string, BOOL void_okay, u2 length)
+{
+    PSTR_FAR r;
+    unsigned int depth = 0;
+    for (;length > 0;) {
+        switch (getCharAt(string.common_ptr_)) {
+        case 'V':
+            if (!void_okay) {
+                r.common_ptr_ = 0;
+                return r;
+            }
+            /* FALL THROUGH */
+        case 'Z':
+        case 'B':
+        case 'C':
+        case 'S':
+        case 'I':
+        case 'J':
+//#if IMPLEMENTS_FLOAT
+//        case 'F':
+//        case 'D':
+//#endif
+            string.common_ptr_++;
+            return string;
+
+        case 'L': {
+            /* Skip over the class name, if one is there. */
+            PSTR_FAR s1;
+            s1.common_ptr_ = string.common_ptr_ + 1;
+            {
+                PSTR_FAR p = skipOverFieldName(s1, TRUE, (unsigned short) (length - 1));
+                /* The next character better be a semicolon. */
+                if (p.common_ptr_ != 0 && p.common_ptr_ < string.common_ptr_ + length && getCharAt(p.common_ptr_) == ';') {
+                    p.common_ptr_++;
+                    return p;
+                }
+                r.common_ptr_ = 0;
+                return r;
+
+            }
+                  }
+
+        case '[':
+            /* The rest of what's there better be a legal signature.  */
+            string.common_ptr_++;
+            length--;
+            if (++depth == 256) {
+                r.common_ptr_ = 0;
+                return r;
+            }
+            void_okay = FALSE;
+            break;
+
+        default:
+            r.common_ptr_ = 0;
+            return r;
+        }
+    }
+    r.common_ptr_ = 0;
+    return r;
+}
+
+
+/*=========================================================================
+* FUNCTION:      skipOverFieldName()
+* TYPE:          private class file load operation
+* OVERVIEW:      skip over a legal field name in a get a given string
+* INTERFACE:
+*   parameters:  string: a string in which the field name is skipped
+*                slash_okay: is '/' OK.
+*                length: length of the string
+*   returns:     what's remaining after skipping the field name
+*=======================================================================*/
+static PSTR_FAR skipOverFieldName(PSTR_FAR string, BOOL slash_okay, u2 length)
+{
+    PSTR_FAR p;
+    unsigned short ch;
+    unsigned short last_ch = 0;
+    PSTR_FAR zero;
+    zero.common_ptr_ = 0;
+    /* last_ch == 0 implies we are looking at the first char. */
+    for (p = string; p.common_ptr_ != string.common_ptr_ + length; last_ch = ch) {
+        PSTR_FAR old_p = p;
+        ch = getCharAt(p.common_ptr_);
+        if (ch < 128) {
+            p.common_ptr_++;
+            /* quick check for ascii */
+            if ((ch >= 'a' && ch <= 'z') ||
+                (ch >= 'A' && ch <= 'Z') ||
+                (last_ch && ch >= '0' && ch <= '9')) {
+                    continue;
+            }
+        } else {
+            /* KVM simplification: we give up checking for those Unicode
+            chars larger than 127. Otherwise we'll have to include a
+            couple of large Unicode tables, bloating the footprint by
+            8~10K. */
+            PSTR_FAR tmp_p = p;
+            ch = utf2unicode(&tmp_p);
+            p = tmp_p;
+            continue;
+        }
+
+        if (slash_okay && ch == '/' && last_ch) {
+            if (last_ch == '/') {
+                /* Don't permit consecutive slashes */
+                return zero;           
+            }
+        } else if (ch == '_' || ch == '$') {
+            /* continue */
+        } else {
+            return last_ch ? old_p : zero;
+        }
+    }
+    return last_ch ? p : zero;
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadVersionInfo()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the first few bytes of a Java class file,
+*                checking the file type and version information.
+* INTERFACE:
+*   parameters:  classfile pointer
+*   returns:     <nothing>
+*   throws:      ClassFormatError if this is not a Java class file
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void loadVersionInfo(FILEPOINTER_HANDLE_FAR ClassFileH)
+{
+    u4 magic;
+    u2 majorVersion;
+    u2 minorVersion;
+
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Loading version information\n");
+//    }
+//#endif /* INCLUDEDEBUGCODE */
+
+    magic = loadCell(ClassFileH);
+    if (magic != 0xCAFEBABE) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_MAGIC_VALUE);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+    /* check version information */
+    minorVersion = loadShort(ClassFileH);
+    majorVersion = loadShort(ClassFileH);
+    if ((majorVersion < JAVA_MIN_SUPPORTED_VERSION) ||
+        (majorVersion > JAVA_MAX_SUPPORTED_VERSION)) {
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_BAD_VERSION_INFO);
+            raiseExceptionWithMessage(ClassFormatError, msg);
+    }
 }

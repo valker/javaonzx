@@ -263,15 +263,15 @@ typedef struct  {
 // #define UnionSizeInCells(structName) ((sizeof(union structName) + 3) >> 2)
  
  /* Field and Method key types */
- typedef unsigned short NameKey;
- typedef unsigned short MethodTypeKey;
- typedef unsigned short FieldTypeKey;
+ typedef u2 NameKey;
+ typedef u2 MethodTypeKey;
+ typedef u2 FieldTypeKey;
  typedef union {
      struct {
-             unsigned short nameKey;
-             unsigned short typeKey; /* either MethodTypeKey or FieldTypeKey */
+             u2 nameKey;
+             u2 typeKey; /* either MethodTypeKey or FieldTypeKey */
      } nt;
-     unsigned long i;
+     u4 i;
  } NameTypeKey;
  
 #define STRINGBUFFERSIZE  512
