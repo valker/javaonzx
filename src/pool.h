@@ -8,18 +8,30 @@
 #ifndef POOL_H_INCLUDED
 #define POOL_H_INCLUDED
 
+#define CONSTANT_Utf8               1
+#define CONSTANT_Integer            3
+#define CONSTANT_Float              4
+#define CONSTANT_Long               5
+#define CONSTANT_Double             6
+#define CONSTANT_Class              7
+#define CONSTANT_String             8
+#define CONSTANT_Fieldref           9
+#define CONSTANT_Methodref          10
+#define CONSTANT_InterfaceMethodref 11
+#define CONSTANT_NameAndType        12
 
 /* Each of these represents one entry in the constant pool */
 union constantPoolEntryStruct {
     struct { 
-        unsigned short classIndex;
-        unsigned short nameTypeIndex;
+        u2 classIndex;
+        u2 nameTypeIndex;
     }               method;  /* Also used by Fields */
     CLASS_FAR           clazz;
     INTERNED_STRING_INSTANCE_FAR String;
     //cell           *cache;   /* Either clazz or String */
     //cell            integer;
-    long            length;
+    u2              integer;
+    u4              length;
     NameTypeKey     nameTypeKey;
     NameKey         nameKey;
     UString_FAR     ustring;

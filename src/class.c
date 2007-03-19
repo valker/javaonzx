@@ -401,18 +401,20 @@ getArrayClass(int depth, INSTANCE_CLASS_FAR baseClass, char signCode)
         } else {
             //clazz->gcType = GCT_OBJECTARRAY;
             {
-                long gcType = GCT_OBJECTARRAY;
-                writeHmem((void*)&gcType,clazz.common_ptr_ + offsetof(struct arrayClassStruct, gcType), sizeof(gcType));
+                //u4 gcType = GCT_OBJECTARRAY;
+                //writeHmem((void*)&gcType,clazz.common_ptr_ + offsetof(struct arrayClassStruct, gcType), sizeof(gcType));
+                setDWordAt(clazz.common_ptr_ + offsetof(struct arrayClassStruct, gcType), GCT_OBJECTARRAY);
             }
             //clazz->itemSize = arrayItemSize(T_REFERENCE);
             {
-                long itemSize = arrayItemSize(T_REFERENCE);
-                writeHmem((void*)&itemSize,clazz.common_ptr_ + offsetof(struct arrayClassStruct, itemSize), sizeof(itemSize));
+                //u4 itemSize = arrayItemSize(T_REFERENCE);
+                //writeHmem((void*)&itemSize,clazz.common_ptr_ + offsetof(struct arrayClassStruct, itemSize), sizeof(itemSize));
+                setDWordAt(clazz.common_ptr_ + offsetof(struct arrayClassStruct, itemSize), arrayItemSize(T_REFERENCE));
             }
 
             if (isPrimitiveBase) {
                 //clazz->clazz.accessFlags = ACC_FINAL | ACC_ABSTRACT | ACC_PUBLIC | ACC_ARRAY_CLASS;
-                unsigned short accessFlags = ACC_FINAL | ACC_ABSTRACT | ACC_PUBLIC | ACC_ARRAY_CLASS;
+                u2 accessFlags = ACC_FINAL | ACC_ABSTRACT | ACC_PUBLIC | ACC_ARRAY_CLASS;
                 writeHmem((void*)&accessFlags, clazz.common_ptr_ + ARRAY_CLASS_CLAZZ + offsetof(struct classStruct, accessFlags), sizeof(accessFlags));
             } else {
                 struct instanceClassStruct copy;
@@ -549,9 +551,9 @@ INSTANCE_FAR instantiate(INSTANCE_CLASS_FAR thisClass)
 *   returns:     array item size
 *=======================================================================*/
 
-long arrayItemSize(int arrayType)
+u4 arrayItemSize(i2 arrayType)
 {
-    long itemSize;
+    u4 itemSize;
 
     switch (arrayType) {
     case T_BOOLEAN: case T_BYTE:

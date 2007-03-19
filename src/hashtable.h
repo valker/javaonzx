@@ -21,9 +21,9 @@ typedef PUTF_HASH_ENTRY_FAR UString_FAR;
 */
 typedef struct UTF_Hash_Entry { 
     PUTF_HASH_ENTRY_FAR next;
-    unsigned short length;
-    unsigned short key;
-    char string[1];          /* The characters of the string */
+    u2 length;
+    u2 key;
+    u1 string[1];          /* The characters of the string */
 };
 
 #define UTF_LENGTH offsetof(struct UTF_Hash_Entry, length)
@@ -55,6 +55,10 @@ PSTR_FAR UStringInfo(PUTF_HASH_ENTRY_FAR hash);
 /* Hashtable containing all the classes in the system */
 extern HASHTABLE_FAR ClassTable;
 non_banked u2 stringHash(PSTR_FAR s, i2 length);
+INTERNED_STRING_INSTANCE_FAR internString(PSTR_FAR string, u2 length);
+NameKey change_Name_to_Key(CONST_CHAR_HANDLE_FAR, i2 offset, i2 length);
+/* Convert utf8 to unicode */
+u2 utf2unicode(PSTR_FAR* utf);
 
 
 #endif

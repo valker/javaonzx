@@ -41,7 +41,7 @@ non_banked void initPage(void)
   ((HighMemoryDescriptor*)GETMEMORY(MEM_PAGE_START_ADDR))->size_ = (MEM_PAGE_SIZE - 2 * sizeof(HighMemoryDescriptor));
 
   {
-    const unsigned short int s = 0 - sizeof(HighMemoryDescriptor);
+    const u2 s = 0 - sizeof(HighMemoryDescriptor);
     ((HighMemoryDescriptor*)GETMEMORY(s))->type_ = GCT_END;
   }
 }
