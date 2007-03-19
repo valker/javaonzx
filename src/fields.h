@@ -11,7 +11,7 @@
 struct methodStruct {
     NameTypeKey   nameTypeKey;
     union { 
-        struct {
+        struct JavaStruct {
             u1* code;
             HANDLERTABLE_FAR handlers;
             union {
@@ -34,6 +34,15 @@ struct methodStruct {
     u2 argCount;    /* Method argument (parameter) count */
 };
 
+#define SIZEOF_METHOD            sizeof(struct methodStruct)
+#define METHOD_NAMETYPEKEY  offsetof(struct methodStruct, nameTypeKey)
+#define METHOD_ARGCOUNT  offsetof(struct methodStruct, argCount)
+#define METHOD_ACCESSFLAGS  offsetof(struct methodStruct, accessFlags)
+#define METHOD_FRAMESIZE  offsetof(struct methodStruct, frameSize)
+#define METHOD_U  offsetof(struct methodStruct, u)
+#define JAVA_MAXSTACK offsetof(struct JavaStruct, maxStack)
+#define JAVA_HANDLERS offsetof(struct JavaStruct, handlers)
+
 /*  FIELD */
 struct fieldStruct {
     NameTypeKey nameTypeKey;
@@ -52,6 +61,16 @@ struct fieldTableStruct {
     u2 length;
     struct fieldStruct fields[1];
 };
+
+struct methodTableStruct { 
+    u2 length;
+    struct methodStruct methods[1];
+};
+
+#define SIZEOF_METHODTABLE(n)  \
+    (sizeof(struct methodTableStruct) + (n - 1) * SIZEOF_METHOD)
+
+#define METHODTABLE_METHODS offsetof(struct methodTableStruct, methods)
 
 
 NameTypeKey getNameAndTypeKey(PSTR_FAR name, PSTR_FAR type);

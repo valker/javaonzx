@@ -93,7 +93,7 @@ typedef struct  {
  union {                        \
   far_ptr common_ptr_;          \
   struct {                      \
-    u2 near_ptr_;               \
+    _ptr_type_ near_ptr_;       \
     u1 page_;                   \
     u1 reserved;                \
   } fields_;                    \

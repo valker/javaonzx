@@ -100,6 +100,7 @@ struct instanceClassStruct {
 #define INSTANCE_CLASS_IFACETABLE   offsetof(struct instanceClassStruct, ifaceTable)
 #define INSTANCE_CLASS_CONSTPOOL    offsetof(struct instanceClassStruct, constPool)
 #define INSTANCE_CLASS_FIELDTABLE   offsetof(struct instanceClassStruct, fieldTable)
+#define INSTANCE_CLASS_METHODTABLE   offsetof(struct instanceClassStruct, methodTable)
 
 /* ARRAY_CLASS */
 struct arrayClassStruct {

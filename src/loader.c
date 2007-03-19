@@ -7,7 +7,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef ZX
 #include <intrz80.h>
+#endif
 #include "jvm_types.h"
 #include "loader.h"
 #include "root_code.h"
@@ -17,6 +19,16 @@
 #include "frame.h"
 #include "pool.h"
 #include "fields.h"
+
+#define RECOGNIZED_METHOD_FLAGS (ACC_PUBLIC | \
+    ACC_PRIVATE | \
+    ACC_PROTECTED | \
+    ACC_STATIC | \
+    ACC_FINAL | \
+    ACC_SYNCHRONIZED | \
+    ACC_NATIVE | \
+    ACC_ABSTRACT | \
+    ACC_STRICT )
 
 
 BOOL loadedReflectively;
@@ -37,6 +49,8 @@ static u2 verifyMethodType(PSTR_FAR name, PSTR_FAR signature);
 static void verifyFieldType(PSTR_FAR type);
 static PSTR_FAR skipOverFieldType(PSTR_FAR string, BOOL void_okay, u2 length);
 static PSTR_FAR skipOverFieldName(PSTR_FAR string, BOOL slash_okay, u2 length);
+static void loadOneMethod(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass, METHOD_FAR* thisMethodH, POINTERLIST_HANDLE_FAR StringPoolH);
+static void verifyMethodFlags(u2 flags, u2 classFlags, PSTR_FAR name);
 
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz) {
     return getWordAt(clazz.common_ptr_ + INSTANCE_CLASS_STATUS);
@@ -1287,4 +1301,289 @@ static void loadVersionInfo(FILEPOINTER_HANDLE_FAR ClassFileH)
             msg.common_ptr_ = address_24_of(KVM_MSG_BAD_VERSION_INFO);
             raiseExceptionWithMessage(ClassFormatError, msg);
     }
+}
+
+static void loadMethods(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass,
+            POINTERLIST_HANDLE_FAR StringPoolH)
+{
+    u2 methodCount = loadShort(ClassFileH);
+    if (methodCount == 0) {
+        return;
+    }
+    START_TEMPORARY_ROOTS
+        int tableSize = SIZEOF_METHODTABLE(methodCount);
+    unsigned int index;
+//#if USESTATIC
+//    DECLARE_TEMPORARY_ROOT(METHODTABLE, methodTable,
+//    (METHODTABLE)callocObject(tableSize, GCT_METHODTABLE));
+//#else
+    METHODTABLE_FAR methodTable;
+    methodTable.common_ptr_ = callocPermanentObject(tableSize);
+//#endif
+    //methodTable->length = methodCount;
+    setWordAt(methodTable.common_ptr_, methodCount);
+
+    //CurrentClass->methodTable = methodTable;
+    setDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_METHODTABLE, methodTable.common_ptr_);
+
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Loading methods\n");
+//    }
+//#endif /* INCLUDEDEBUGCODE */
+
+    for (index = 0; index < methodCount; index++) {
+//#if USESTATIC
+//        START_TEMPORARY_ROOTS
+//            DECLARE_TEMPORARY_METHOD_ROOT(thisMethod, methodTable, index);
+//        loadOneMethod(ClassFileH, CurrentClass, &thisMethod, StringPoolH);
+//        END_TEMPORARY_ROOTS
+//#else
+        METHOD_FAR thisMethod;
+        thisMethod.common_ptr_ = methodTable.common_ptr_ + METHODTABLE_METHODS + index * sizeof(struct methodStruct);
+
+        loadOneMethod(ClassFileH, CurrentClass, &thisMethod, StringPoolH);
+//#endif
+    }
+    END_TEMPORARY_ROOTS
+
+        if (methodCount >= 2) {
+            /* Check to see if there are two methods with the same name/type */
+            METHODTABLE_FAR methodTable;
+            METHOD_FAR firstMethod;
+            METHOD_FAR lastMethod;
+            METHOD_FAR outer, inner;
+            methodTable.common_ptr_ = getDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_METHODTABLE);
+            firstMethod.common_ptr_ = methodTable.common_ptr_ + METHODTABLE_METHODS;
+            lastMethod.common_ptr_ = firstMethod.common_ptr_ + (methodCount - 1) * sizeof(struct methodStruct);
+            for (outer = firstMethod; outer.common_ptr_ < lastMethod.common_ptr_; outer.common_ptr_ += sizeof(struct methodStruct)) {
+                for (inner.common_ptr_ = outer.common_ptr_ + sizeof(struct methodStruct); inner.common_ptr_ <= lastMethod.common_ptr_; inner.common_ptr_ += sizeof(struct methodStruct)) {
+                    if (getDWordAt(outer.common_ptr_ + METHOD_NAMETYPEKEY) == getDWordAt(inner.common_ptr_ + METHOD_NAMETYPEKEY)) {
+                        PSTR_FAR msg;
+                        msg.common_ptr_ = address_24_of(KVM_MSG_DUPLICATE_METHOD_FOUND);
+                        raiseExceptionWithMessage(ClassFormatError, msg);
+                    }
+                }
+            }
+        }
+
+//#if INCLUDEDEBUGCODE
+//        if (traceclassloadingverbose) {
+//            fprintf(stdout, "Methods loaded ok\n");
+//        }
+//#endif /* INCLUDEDEBUGCODE */
+
+}
+/*=========================================================================
+* FUNCTION:      ignoreAttributes()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the possible extra attributes (e.g., the
+*                "SourceFile" attribute) supplied in a Java class file.
+*                The current implementation ignores all these attributes.
+* INTERFACE:
+*   parameters:  classfile pointer, current class pointer
+*   returns:     <nothing>
+*=======================================================================*/
+static void ignoreAttributes(FILEPOINTER_HANDLE_FAR ClassFileH, POINTERLIST_HANDLE_FAR StringPoolH)
+{
+    u2 attrCount = loadShort(ClassFileH);
+    int attrIndex;
+
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Loading extra attributes\n");
+//    }
+//#endif /* INCLUDEDEBUGCODE */
+
+    for (attrIndex = 0; attrIndex < attrCount; attrIndex++) {
+        unsigned short attrNameIndex = loadShort(ClassFileH);
+        unsigned int   attrLength = loadCell(ClassFileH);
+
+        /* This verifies that the attribute index is legitimate */
+        (void)getUTF8String(StringPoolH, attrNameIndex);
+
+        skipBytes(ClassFileH, attrLength);
+    }
+
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose)
+//        fprintf(stdout, "Extra attributes loaded\n");
+//#endif /* INCLUDEDEBUGCODE */
+
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadMethods()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the methods defined in a Java class file.
+* INTERFACE:
+*   parameters:  classfile pointer, current class pointer
+*   returns:     <nothing>
+*   throws:      ClassFormatError if any part of the method table
+*                is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+
+static void loadOneMethod(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass,
+                          METHOD_FAR* thisMethodH, POINTERLIST_HANDLE_FAR StringPoolH) {
+    METHOD_FAR thisMethod;
+    u2 accessFlags = loadShort(ClassFileH) & RECOGNIZED_METHOD_FLAGS;
+    u2 nameIndex   = loadShort(ClassFileH);
+    u2 typeIndex   = loadShort(ClassFileH);
+    START_TEMPORARY_ROOTS
+        DECLARE_TEMPORARY_ROOT(PSTR_FAR, methodName, getUTF8String(StringPoolH, nameIndex));
+        DECLARE_TEMPORARY_ROOT(PSTR_FAR, signature, getUTF8String(StringPoolH, typeIndex));
+        NameTypeKey result;
+
+    if (hstrcmp(methodName.common_ptr_, address_24_of(&"<clinit>")) == 0) {
+        accessFlags = ACC_STATIC;
+    } else {
+        verifyMethodFlags(accessFlags, getWordAt(CurrentClass.common_ptr_ + CLASS_ACCESSFLAGS), methodName);
+    }
+    verifyName(methodName, LegalMethod);
+
+    {
+        CONST_CHAR_HANDLE_FAR cchf;
+        cchf.common_ptr_ = (far_ptr)&methodName;
+        result.nt.nameKey = change_Name_to_Key(cchf, 0, hstrlen(methodName.common_ptr_));
+        cchf.common_ptr_ = (far_ptr)&signature;
+        result.nt.typeKey = change_MethodSignature_to_Key(cchf, 0, hstrlen(signature.common_ptr_));
+    }
+
+    //ASSERTING_NO_ALLOCATION
+        thisMethod = unhand(thisMethodH);
+//    thisMethod->nameTypeKey = result;
+        writeHmem(&result, thisMethod.common_ptr_ + METHOD_NAMETYPEKEY, sizeof(NameTypeKey));
+    //thisMethod->argCount = verifyMethodType(methodName, signature);
+        setWordAt(thisMethod.common_ptr_ + METHOD_ARGCOUNT, verifyMethodType(methodName, signature));
+
+    /* If this is a virtual method, increment argument counter */
+    if (!(accessFlags & ACC_STATIC)) {
+        //thisMethod->argCount++;
+        setWordAt(thisMethod.common_ptr_ + METHOD_ARGCOUNT, 1 + getWordAt(thisMethod.common_ptr_ + METHOD_ARGCOUNT));
+    }
+
+    if (/*thisMethod->argCount*/getWordAt(thisMethod.common_ptr_ + METHOD_ARGCOUNT) > 255) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_TOO_MANY_METHOD_ARGUMENTS);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Method '%s' loaded\n", methodName);
+//    }
+//#endif /* INCLUDEDEBUGCODE */
+
+    /* Check if the field is double length, or is a pointer type.  If so
+    * set the appropriate bit in the word */
+    switch (getCharAt(hstrchr(signature.common_ptr_, ')') + 1)) {
+                case 'D': case 'J':   accessFlags |= ACC_DOUBLE;   break;
+                case 'L': case '[':   accessFlags |= ACC_POINTER;  break;
+                case 'V':   accessFlags |= (ACC_POINTER | ACC_DOUBLE);  break;
+    }
+
+    //thisMethod->accessFlags = accessFlags;
+    setDWordAt(thisMethod.common_ptr_ + METHOD_ACCESSFLAGS, accessFlags);
+
+    //thisMethod->ofClass     = CurrentClass;
+    setDWordAt(thisMethod.common_ptr_, CurrentClass.common_ptr_);
+
+    /* These values will be initialized later */
+    //thisMethod->frameSize   = 0;
+    setWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE, 0);
+
+    //thisMethod->u.java.maxStack    = 0;
+    setWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_MAXSTACK, 0);
+    
+    //thisMethod->u.java.handlers = NIL;
+    setDWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_HANDLERS, 0);
+    //END_ASSERTING_NO_ALLOCATION
+
+    loadMethodAttributes(ClassFileH, thisMethodH, StringPoolH);
+
+    /* Garbage collection may have happened */
+    thisMethod = unhand(thisMethodH);
+    if (!(/*thisMethod->accessFlags*/getDWordAt(thisMethod.common_ptr_ + METHOD_ACCESSFLAGS) & (ACC_NATIVE | ACC_ABSTRACT))) {
+        if ( getWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE)< getWordAt(thisMethod.common_ptr_ + METHOD_ARGCOUNT)) {
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_BAD_FRAME_SIZE);
+            raiseExceptionWithMessage(ClassFormatError, msg);
+        }
+    }
+
+    if (accessFlags & ACC_NATIVE) {
+        /* Store native function pointer in the code field */
+        thisMethod->u.native.info = NULL;
+        thisMethod->u.native.code = getNativeFunction(CurrentClass, methodName, signature);
+
+        /* Check for finalizers, skipping java.lang.Object */
+        if (CurrentClass->superClass != NULL) {
+            if (strcmp(methodName, "finalize") == 0) {
+                if (accessFlags & ACC_PRIVATE) {
+                    /* private native finalize() method found */
+                    /* Save native finalizer pointer in the class field */
+                    CurrentClass->finalizer =
+                        (NativeFuncPtr)thisMethod->u.native.code;
+                }
+            }
+        }
+    }
+    END_TEMPORARY_ROOTS
+
+}
+
+
+/*=========================================================================
+* FUNCTION:      verifyMethodFlags()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate method access flags
+* INTERFACE:
+*   parameters:  method access flags, isInterface, methodName
+*   returns:     nothing
+*   throws:      ClassFormatError if the method access flags are invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void verifyMethodFlags(u2 flags, u2 classFlags, PSTR_FAR name)
+{
+    /* These are all small bits.  The value is between 0 and 7. */
+    int accessFlags = flags & (ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED);
+
+    /* Make sure that accessFlags has one of the four legal values, by
+    * looking it up in a bit mask */
+
+    if (( (1 << accessFlags)
+        & ((1 << 0)
+        | (1 << ACC_PUBLIC)
+        | (1 << ACC_PRIVATE) | (1 << ACC_PROTECTED))) == 0) {
+            goto failed;
+    }
+
+    if ((classFlags & ACC_INTERFACE) == 0) {
+        /* class or instance methods */
+        if (flags & ACC_ABSTRACT) {
+            if (flags & (ACC_FINAL | ACC_NATIVE | ACC_SYNCHRONIZED
+                | ACC_PRIVATE | ACC_STATIC | ACC_STRICT)) {
+                    goto failed;
+            }
+        }
+    } else {
+        /* interface methods */
+        if ( (flags & (ACC_ABSTRACT | ACC_PUBLIC | ACC_STATIC))
+            != (ACC_ABSTRACT | ACC_PUBLIC)) {
+                /* Note that <clinit> is special, and not handled by this
+                * function.  It's not abstract, and static. */
+                goto failed;
+        }
+    }
+
+    if (strcmp(name, "<init>") == 0) {
+        if (flags & ~(ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE | ACC_STRICT))
+            goto failed;
+    }
+    return;
+
+failed:
+    raiseExceptionWithMessage(ClassFormatError, KVM_MSG_BAD_METHOD_ACCESS_FLAGS);
 }

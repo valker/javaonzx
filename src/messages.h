@@ -82,5 +82,14 @@
 #define KVM_MSG_BAD_VERSION_INFO \
     "Bad version information"
 
+#define KVM_MSG_DUPLICATE_METHOD_FOUND \
+    "Duplicate method found"
+
+#define KVM_MSG_TOO_MANY_METHOD_ARGUMENTS \
+    "More than 255 method arguments"
+
+#define KVM_MSG_BAD_FRAME_SIZE \
+    "Bad frame size"
+
 #endif
 

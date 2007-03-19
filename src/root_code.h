@@ -34,6 +34,7 @@ non_banked u2       hstrlen(far_ptr ptr);
 non_banked i1       hmemcmp(far_ptr ptr1, far_ptr ptr2, u2 length);
 non_banked void     hmemcpy(far_ptr dest, far_ptr src, u2 length);
 non_banked i1       hstrcmp(far_ptr str1, far_ptr str2);
+non_banked far_ptr  hstrchr(far_ptr string, char c );
 
 #ifndef ZX
 far_ptr address_24_of(const void* ptr);
