@@ -319,3 +319,25 @@ non_banked i1       hstrcmp(far_ptr str1, far_ptr str2) {
     restoreMMUState(mmu);
     return r;
 }
+
+
+non_banked far_ptr  hstrchr(far_ptr farString, char c )
+{
+    const u1 mmu = getMMUState();
+    PSTR_FAR r;
+    const u1* string = farString;
+
+    setPage(GETPAGE(farString));
+
+    while (*string && *string != c)
+        string++;
+
+    if (*string == c) {
+        r.fields_.page_ = GETPAGE(farString);
+        r.fields_.near_ptr_ = string;
+    } else {
+        r.common_ptr_ = 0;
+    }
+    restoreMMUState(mmu);
+    return r.common_ptr_;
+}
