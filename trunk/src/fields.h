@@ -28,7 +28,7 @@ struct methodStruct {
             void *info;
         } native;
     } u;
-    u4  accessFlags;          /* Access indicators (public/private etc.) */
+    u2  accessFlags;          /* Access indicators (public/private etc.) */
     INSTANCE_CLASS_FAR ofClass; /* Backpointer to the class owning the field */
     u2 frameSize;   /* Method frame size (arguments+local vars) */
     u2 argCount;    /* Method argument (parameter) count */
@@ -54,21 +54,27 @@ struct methodStruct {
 /*  FIELD */
 struct fieldStruct {
     NameTypeKey nameTypeKey;
-    u4         accessFlags;    /* Access indicators (public/private etc.) */
-    INSTANCE_CLASS ofClass;     /* Backpointer to the class owning the field */
+    u2         accessFlags;     /* Access indicators (public/private etc.) */
+    INSTANCE_CLASS_FAR ofClass; /* Backpointer to the class owning the field */
     union { 
         u2  offset;             /* for dynamic objects */
         far_ptr staticAddress;  /* pointer to static.  */
     } u;
 };
 
-#define FIELD_ACCESSFLAGS offsetof(struct fieldStruct, accessFlags)
-#define FIELD_U offsetof(struct fieldStruct, u)
+#define SIZEOF_FIELD sizeof(struct fieldStruct)
+
+#define FIELD_ACCESSFLAGS   offsetof(struct fieldStruct, accessFlags)
+#define FIELD_U             offsetof(struct fieldStruct, u)
+#define FIELD_OFCLASS       offsetof(struct fieldStruct, ofClass)
 
 struct fieldTableStruct { 
     u2 length;
     struct fieldStruct fields[1];
 };
+
+#define FIELDTABLE_LENGTH offsetof(struct fieldTableStruct, length)
+#define FIELDTABLE_FIELDS offsetof(struct fieldTableStruct, fields)
 
 struct methodTableStruct { 
     u2 length;
@@ -77,6 +83,9 @@ struct methodTableStruct {
 
 #define SIZEOF_METHODTABLE(n)  \
     (sizeof(struct methodTableStruct) + (n - 1) * SIZEOF_METHOD)
+
+#define SIZEOF_FIELDTABLE(n)   \
+    (sizeof(struct fieldTableStruct) + (n - 1) * SIZEOF_FIELD)
 
 #define METHODTABLE_METHODS offsetof(struct methodTableStruct, methods)
 
