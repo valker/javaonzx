@@ -12,7 +12,7 @@ struct methodStruct {
     NameTypeKey   nameTypeKey;
     union { 
         struct JavaStruct {
-            u1* code;
+            BYTES_FAR code;
             HANDLERTABLE_FAR handlers;
             union {
                 STACKMAP_FAR pointerMap;
@@ -23,7 +23,7 @@ struct methodStruct {
             /* frameSize should be here, rather than in the generic part, */
             /* but this gives us better packing of the bytes */
         } java;
-        struct { 
+        struct NativeStruct { 
             void (*code)(void);
             void *info;
         } native;
@@ -40,8 +40,16 @@ struct methodStruct {
 #define METHOD_ACCESSFLAGS  offsetof(struct methodStruct, accessFlags)
 #define METHOD_FRAMESIZE  offsetof(struct methodStruct, frameSize)
 #define METHOD_U  offsetof(struct methodStruct, u)
+#define METHOD_OFCLASS  offsetof(struct methodStruct, ofClass)
+
 #define JAVA_MAXSTACK offsetof(struct JavaStruct, maxStack)
 #define JAVA_HANDLERS offsetof(struct JavaStruct, handlers)
+#define JAVA_CODE offsetof(struct JavaStruct, code)
+#define JAVA_CODELENGTH offsetof(struct JavaStruct, codeLength)
+#define JAVA_STACKMAPS offsetof(struct JavaStruct, stackMaps)
+
+#define NATIVE_INFO offsetof(struct NativeStruct, info)
+#define NATIVE_CODE offsetof(struct NativeStruct, code)
 
 /*  FIELD */
 struct fieldStruct {
