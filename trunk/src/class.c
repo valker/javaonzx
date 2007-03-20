@@ -279,7 +279,8 @@ void InitializeJavaSystemClasses(void)
     if (inAnyHeap(RunCustomCodeMethod->u.java.code)){
         struct methodStruct copy;
         readHmem((void*)&copy, RunCustomCodeMethod.common_ptr_, sizeof(struct methodStruct));
-        copy.u.java.code[0] = CUSTOMCODE;
+        //copy.u.java.code[0] = CUSTOMCODE;
+        setCharAt(copy.u.java.code.common_ptr_, CUSTOMCODE);
         copy.u.java.maxStack = RunCustomCodeMethod_MAX_STACK_SIZE;
         writeHmem((void*)&copy, RunCustomCodeMethod.common_ptr_, sizeof(struct methodStruct));
     }/* else {

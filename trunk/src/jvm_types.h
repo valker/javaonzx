@@ -99,7 +99,28 @@ typedef struct  {
   } fields_;                    \
  }
  
- 
+/////////////////////////////////////////////////////////////////////////
+
+ typedef u1*                                  BYTES;
+ typedef far_ptr_of(BYTES)                    BYTES_FAR;
+
+ typedef u2*                                  WORDS;
+ typedef far_ptr_of(WORDS)                    WORDS_FAR;
+
+ typedef BYTES              *                 BYTES_HANDLE;
+ typedef far_ptr_of(BYTES_HANDLE)             BYTES_HANDLE_FAR;
+
+ typedef const char *                         PSTR;
+ typedef far_ptr_of(PSTR)                     PSTR_FAR;
+
+ typedef PSTR_FAR           *                 CONST_CHAR_HANDLE;
+ typedef far_ptr_of(CONST_CHAR_HANDLE)        CONST_CHAR_HANDLE_FAR;
+
+ typedef unsigned char*     *                 UNSIGNED_CHAR_HANDLE;
+ typedef far_ptr_of(UNSIGNED_CHAR_HANDLE)     UNSIGNED_CHAR_HANDLE_FAR;
+
+//////////////////////////////////////////////////////////////////////////
+
  typedef struct classStruct*                  CLASS;
  typedef far_ptr_of(CLASS)                    CLASS_FAR;
 
@@ -199,9 +220,6 @@ typedef struct  {
  typedef struct constantPoolStruct*           CONSTANTPOOL;
  typedef far_ptr_of(CONSTANTPOOL)             CONSTANTPOOL_FAR;
 
- typedef char*                                BYTES;
- typedef far_ptr_of(BYTES)                    BYTES_FAR;
-
  typedef FILEPOINTER        *                 FILEPOINTER_HANDLE;
  typedef far_ptr_of(FILEPOINTER_HANDLE)       FILEPOINTER_HANDLE_FAR;
 
@@ -226,23 +244,12 @@ typedef struct  {
  typedef JAVATHREAD         *                 JAVATHREAD_HANDLE;
  typedef far_ptr_of(JAVATHREAD_HANDLE)        JAVATHREAD_HANDLE_FAR;
 
- typedef BYTES              *                 BYTES_HANDLE;
- typedef far_ptr_of(BYTES_HANDLE)             BYTES_HANDLE_FAR;
-
  typedef METHOD             *                 METHOD_HANDLE;
  typedef far_ptr_of(METHOD_HANDLE)            METHOD_HANDLE_FAR;
 
  typedef FRAME              *                 FRAME_HANDLE;
  typedef far_ptr_of(FRAME_HANDLE)             FRAME_HANDLE_FAR;
 
- typedef const char *                         PSTR;
- typedef far_ptr_of(PSTR)                     PSTR_FAR;
-
- typedef PSTR_FAR           *                 CONST_CHAR_HANDLE;
- typedef far_ptr_of(CONST_CHAR_HANDLE)        CONST_CHAR_HANDLE_FAR;
-
- typedef unsigned char*     *                 UNSIGNED_CHAR_HANDLE;
- typedef far_ptr_of(UNSIGNED_CHAR_HANDLE)     UNSIGNED_CHAR_HANDLE_FAR;
 
  typedef STRING_INSTANCE    *                 STRING_INSTANCE_HANDLE;
  typedef far_ptr_of(STRING_INSTANCE_HANDLE)   STRING_INSTANCE_HANDLE_FAR;
@@ -250,18 +257,9 @@ typedef struct  {
  typedef THROWABLE_INSTANCE *                 THROWABLE_INSTANCE_HANDLE;
  typedef far_ptr_of(THROWABLE_INSTANCE_HANDLE) 
                                               THROWABLE_INSTANCE_HANDLE_FAR;
-
  typedef THREAD             *                 THREAD_HANDLE;
  typedef far_ptr_of(THREAD_HANDLE)            THREAD_HANDLE_FAR;
 
-
-
- 
-// #define BitSizeToByteSize(n)    (((n) + 7) >> 3)
-// #define ByteSizeToCellSize(n)   (((n) + (CELL - 1)) >> log2CELL)
-// #define StructSizeInCells(structName) ((sizeof(struct structName) + 3) >> 2)
-// #define UnionSizeInCells(structName) ((sizeof(union structName) + 3) >> 2)
- 
  /* Field and Method key types */
  typedef u2 NameKey;
  typedef u2 MethodTypeKey;

@@ -11,15 +11,13 @@
 #include "jvm_types.h"
 #include "hashtable.h"
 
-extern THROWABLE_INSTANCE_FAR OutOfMemoryObject;
+#define ITEM_NewObject_Flag 0x1000
+#define ITEM_NewObject_Mask 0x0FFF
 
-//typedef union cellOrPointer {
-//    cell cell;
-//    cell *cellp;
-//    cell **cellpp;
-//    char *charp;
-//    char **charpp;
-//} cellOrPointer;
+#define ENCODE_NEWOBJECT(pc) ((((pc) & 0x7000)<<1) | 0x1000 | ((pc) & 0x0FFF)) 
+#define DECODE_NEWOBJECT(no) ((((no) & 0xE000)>>1) | ((no) & 0x0FFF))
+
+
 typedef far_ptr cellOrPointer;
 
 /* POINTERLIST */
@@ -74,24 +72,22 @@ struct classStruct {
 
 typedef void (*NativeFuncPtr) (INSTANCE_HANDLE_FAR);
 
-typedef u2* PWORD;
-typedef far_ptr_of(PWORD) PWORD_FAR;
 
 /* INSTANCE_CLASS */
 struct instanceClassStruct {
     struct classStruct clazz;       /* common info */
 
     /* And specific to instance classes */
-    INSTANCE_CLASS_FAR superClass;      /* Superclass, unless java.lang.Object */
-    CONSTANTPOOL_FAR constPool;         /* Pointer to constant pool */
-    FIELDTABLE_FAR  fieldTable;         /* Pointer to instance variable table */
-    METHODTABLE_FAR methodTable;        /* Pointer to virtual method table */
-    PWORD_FAR ifaceTable;               /* Pointer to interface table */
-    POINTERLIST_FAR staticFields;       /* Holds static fields of the class */
-    u2   instSize;                      /* The size of class instances */
-    u2 status;                          /* Class readiness status */
-    THREAD_FAR initThread;              /* Thread performing class initialization */
-    NativeFuncPtr finalizer;            /* Pointer to finalizer */
+    INSTANCE_CLASS_FAR  superClass;     /* Superclass, unless java.lang.Object */
+    CONSTANTPOOL_FAR    constPool;      /* Pointer to constant pool */
+    FIELDTABLE_FAR      fieldTable;     /* Pointer to instance variable table */
+    METHODTABLE_FAR     methodTable;    /* Pointer to virtual method table */
+    WORDS_FAR           ifaceTable;     /* Pointer to interface table */
+    POINTERLIST_FAR     staticFields;   /* Holds static fields of the class */
+    u2                  instSize;       /* The size of class instances */
+    u2                  status;         /* Class readiness status */
+    THREAD_FAR          initThread;     /* Thread performing class initialization */
+    NativeFuncPtr       finalizer;      /* Pointer to finalizer */
 };
 
 #define INSTANCE_CLASS_STATUS       offsetof(struct instanceClassStruct, status)
@@ -101,6 +97,7 @@ struct instanceClassStruct {
 #define INSTANCE_CLASS_CONSTPOOL    offsetof(struct instanceClassStruct, constPool)
 #define INSTANCE_CLASS_FIELDTABLE   offsetof(struct instanceClassStruct, fieldTable)
 #define INSTANCE_CLASS_METHODTABLE   offsetof(struct instanceClassStruct, methodTable)
+#define INSTANCE_CLASS_FINALIZER   offsetof(struct instanceClassStruct, finalizer)
 
 /* ARRAY_CLASS */
 struct arrayClassStruct {
@@ -139,6 +136,33 @@ struct arrayStruct {
     cellOrPointer data[1];  
 };
 
+/* Abstract types used by the byte code verifier. */
+enum {
+    ITEM_Bogus,       /* Unused */
+    ITEM_Integer,
+    ITEM_Float,
+    ITEM_Double,
+    ITEM_Long,
+    ITEM_Null,        /* Result of aconst_null */
+    ITEM_InitObject,  /* "this" is in <init> method, before call to super() */
+
+    ITEM_Object,      /* Extra info field gives name. */
+    ITEM_NewObject,   /* Like object, but uninitialized. */
+
+    /* The following codes are used by the verifier but don't actually occur in
+    * class files.
+    */
+    ITEM_Long_2,      /* 2nd word of long in register */
+    ITEM_Double_2,    /* 2nd word of double in register */
+
+    ITEM_Category1,
+    ITEM_Category2,
+    ITEM_DoubleWord,
+    ITEM_Reference
+};
+
+
+extern THROWABLE_INSTANCE_FAR OutOfMemoryObject;
 
 extern INSTANCE_CLASS_FAR JavaLangObject;    /* Pointer to java.lang.Object */
 extern INSTANCE_CLASS_FAR JavaLangClass;     /* Pointer to java.lang.Class */

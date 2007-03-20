@@ -19,6 +19,7 @@
 #include "frame.h"
 #include "pool.h"
 #include "fields.h"
+#include "native.h"
 
 #define RECOGNIZED_METHOD_FLAGS (ACC_PUBLIC | \
     ACC_PRIVATE | \
@@ -51,6 +52,12 @@ static PSTR_FAR skipOverFieldType(PSTR_FAR string, BOOL void_okay, u2 length);
 static PSTR_FAR skipOverFieldName(PSTR_FAR string, BOOL slash_okay, u2 length);
 static void loadOneMethod(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR CurrentClass, METHOD_FAR* thisMethodH, POINTERLIST_HANDLE_FAR StringPoolH);
 static void verifyMethodFlags(u2 flags, u2 classFlags, PSTR_FAR name);
+static void loadMethodAttributes(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH, POINTERLIST_HANDLE_FAR StringPoolH);
+static u2 loadCodeAttribute(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH, POINTERLIST_HANDLE_FAR StringPoolH);
+static void verifyConstantPoolEntry(INSTANCE_CLASS_FAR CurrentClass, u2 index, u1 tag);
+static u2 loadExceptionHandlers(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH);
+static u4 loadStackMaps(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH);
+
 
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz) {
     return getWordAt(clazz.common_ptr_ + INSTANCE_CLASS_STATUS);
@@ -240,7 +247,7 @@ void loadClassfile(INSTANCE_CLASS_FAR InitiatingClass, BOOL fatalErrorIfFail) {
             * Load and link super-interface(s).
             */
             if (getDWordAt(clazz.common_ptr_ + INSTANCE_CLASS_IFACETABLE) != 0) {
-                PWORD_FAR ifaceTable;
+                WORDS_FAR ifaceTable;
                 u2 ifIndex;
                 u2 ifaceCount = getWordAt(ifaceTable.common_ptr_);
                 ifaceTable.common_ptr_ = getDWordAt(clazz.common_ptr_ + INSTANCE_CLASS_IFACETABLE);
@@ -1515,17 +1522,21 @@ static void loadOneMethod(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR 
 
     if (accessFlags & ACC_NATIVE) {
         /* Store native function pointer in the code field */
-        thisMethod->u.native.info = NULL;
-        thisMethod->u.native.code = getNativeFunction(CurrentClass, methodName, signature);
+        
+        //thisMethod->u.native.info = NULL;
+        setDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_INFO, 0);
+
+        //thisMethod->u.native.code = getNativeFunction(CurrentClass, methodName, signature);
+        setDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_CODE, getNativeFunction(CurrentClass, methodName, signature).common_ptr_);
 
         /* Check for finalizers, skipping java.lang.Object */
-        if (CurrentClass->superClass != NULL) {
-            if (strcmp(methodName, "finalize") == 0) {
+        if (getDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) != 0) {
+            if (hstrcmp(methodName.common_ptr_, address_24_of(&"finalize")) == 0) {
                 if (accessFlags & ACC_PRIVATE) {
                     /* private native finalize() method found */
                     /* Save native finalizer pointer in the class field */
-                    CurrentClass->finalizer =
-                        (NativeFuncPtr)thisMethod->u.native.code;
+                    //CurrentClass->finalizer = (NativeFuncPtr)thisMethod->u.native.code;
+                    setDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_FINALIZER, getDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_CODE));
                 }
             }
         }
@@ -1578,12 +1589,466 @@ static void verifyMethodFlags(u2 flags, u2 classFlags, PSTR_FAR name)
         }
     }
 
-    if (strcmp(name, "<init>") == 0) {
+    if (hstrcmp(name.common_ptr_, address_24_of(&"<init>")) == 0) {
         if (flags & ~(ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE | ACC_STRICT))
             goto failed;
     }
     return;
 
 failed:
-    raiseExceptionWithMessage(ClassFormatError, KVM_MSG_BAD_METHOD_ACCESS_FLAGS);
+    {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_METHOD_ACCESS_FLAGS);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadMethodAttributes()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the "Code" and "Exceptions" attributes
+*                of a method in a class file, ignoring all the
+*                other possible method attributes.
+* INTERFACE:
+*   parameters:  classfile pointer, pointer to the runtime method struct
+*                constant pool pointer
+*   returns:     <nothing>
+*   throws:      ClassFormatError if any part of the Code attribute
+*                is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void loadMethodAttributes(FILEPOINTER_HANDLE_FAR ClassFileH,
+                     METHOD_FAR* thisMethodH,
+                     POINTERLIST_HANDLE_FAR StringPoolH) {
+    u2 attrCount = loadShort(ClassFileH);
+    METHOD_FAR thisMethod = unhand(thisMethodH);
+    int attrIndex;
+    BOOL needCode = !(getDWordAt(thisMethod.common_ptr_ + METHOD_ACCESSFLAGS) & (ACC_NATIVE | ACC_ABSTRACT));
+    BOOL needExceptionTable = TRUE;  /* always optional */
+
+    /* See if the field has any attributes in the class file */
+    for (attrIndex = 0; attrIndex < attrCount; attrIndex++) {
+        u2 attrNameIndex = loadShort(ClassFileH);
+        u4   attrLength    = loadCell(ClassFileH);
+        PSTR_FAR       attrName      = getUTF8String(StringPoolH, attrNameIndex);
+        /* Check if the attribute contains source code */
+        if (hstrcmp(attrName.common_ptr_, address_24_of(&"Code")) == 0) {
+            unsigned int actualLength;
+            if (!needCode) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_DUPLICATE_CODE_ATTRIBUTE);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            actualLength = loadCodeAttribute(ClassFileH, thisMethodH, StringPoolH);
+            if (actualLength != attrLength) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_CODE_ATTRIBUTE_LENGTH);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            needCode = FALSE;
+        } else if (!hstrcmp(attrName.common_ptr_, address_24_of(&"Exceptions"))) {
+            /* Do minimal checking of this attribute. */
+            unsigned int exceptionCount;
+            unsigned int i;
+
+            if (!needExceptionTable) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_DUPLICATE_EXCEPTION_TABLE);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            needExceptionTable = FALSE;
+            exceptionCount = loadShort(ClassFileH);
+            if (2 * exceptionCount + 2 != attrLength) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_EXCEPTION_ATTRIBUTE);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            for (i = 0; i < exceptionCount; i++) {
+                u2 exception = loadShort(ClassFileH);
+                if (exception == 0) {
+                    PSTR_FAR msg;
+                    msg.common_ptr_ = address_24_of(KVM_MSG_BAD_EXCEPTION_ATTRIBUTE);
+                    raiseExceptionWithMessage(ClassFormatError, msg);
+                } else {
+                    INSTANCE_CLASS_FAR icf;
+                    icf.common_ptr_ = getDWordAt(unhand(thisMethodH).common_ptr_);
+                    verifyConstantPoolEntry(icf, exception, CONSTANT_Class);
+                }
+            }
+        } else {
+            /* Unrecognized attribute; skip */
+            skipBytes(ClassFileH, attrLength);
+        }
+    }
+    if (needCode) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_MISSING_CODE_ATTRIBUTE);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadCodeAttribute()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the "Code" attributes
+*                of a method in a class file.
+* INTERFACE:
+*   parameters:  classfile pointer, pointer to the runtime method struct
+*                constant pool pointer
+*   returns:     <nothing>
+*   throws:      ClassFormatError if any part of the Code attribute
+*                is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static u2 loadCodeAttribute(FILEPOINTER_HANDLE_FAR ClassFileH,
+                  METHOD_FAR* thisMethodH,
+                  POINTERLIST_HANDLE_FAR StringPoolH) {
+    u2 actualAttrLength;
+    u2 codeLength;
+    i2 nCodeAttrs;
+    i2 codeAttrIndex;
+    BYTES_FAR code;
+    BOOL needStackMap = TRUE;
+
+    METHOD_FAR thisMethod = unhand(thisMethodH);
+    /* Create a code object and store it in the method */
+
+    //thisMethod->u.java.maxStack = loadShort(ClassFileH); /* max stack */
+    setWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_MAXSTACK, loadShort(ClassFileH));
+
+    //thisMethod->frameSize       = loadShort(ClassFileH); /* frame size */
+    setWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE, loadShort(ClassFileH));
+
+    codeLength                  = loadCell(ClassFileH);  /* code length */
+
+    /* KVM verifier cannot handle bytecode longer than 32 KB */
+    if (codeLength >= 0x7FFF) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_METHOD_LONGER_THAN_32KB);
+        raiseExceptionWithMessage(OutOfMemoryError, msg);
+    }
+
+    /* KVM frames cannot contain more than 512 locals */
+    if (getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_MAXSTACK)
+        + getWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE) >
+        MAXIMUM_STACK_AND_LOCALS) {
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_TOO_MANY_LOCALS_AND_STACK);
+            raiseExceptionWithMessage(OutOfMemoryError, msg);
+    }
+
+    /* Allocate memory for storing the bytecode array */
+    //if (USESTATIC && !ENABLEFASTBYTECODES) {
+    //    code = (BYTE *)mallocBytes(codeLength);
+    //} else {
+        code.common_ptr_ = callocPermanentObject(codeLength);
+    //}
+    thisMethod = unhand(thisMethodH);
+    //thisMethod->u.java.code = code;
+    setDWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODE, code.common_ptr_);
+
+    //thisMethod->u.java.codeLength = codeLength;
+    setWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODELENGTH, codeLength);
+
+    loadBytes(ClassFileH, code.common_ptr_, codeLength);
+    actualAttrLength = 2 + 2 + 4 + codeLength;
+
+    /* Load exception handlers associated with the method */
+    actualAttrLength += loadExceptionHandlers(ClassFileH, thisMethodH);
+
+    nCodeAttrs = loadShort(ClassFileH);
+    actualAttrLength += 2;
+    for (codeAttrIndex = 0; codeAttrIndex < nCodeAttrs; codeAttrIndex++) {
+        unsigned short codeAttrNameIndex = loadShort(ClassFileH);
+        unsigned int   codeAttrLength    = loadCell(ClassFileH);
+        PSTR_FAR codeAttrName = getUTF8String(StringPoolH, codeAttrNameIndex);
+        /* Check if the attribute contains stack maps */
+        if (!hstrcmp(codeAttrName.common_ptr_, address_24_of(&"StackMap"))) {
+            u2 stackMapAttrSize;
+            if (!needStackMap) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_DUPLICATE_STACKMAP_ATTRIBUTE);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            needStackMap = FALSE;
+            stackMapAttrSize = loadStackMaps(ClassFileH, thisMethodH);
+            if (stackMapAttrSize != codeAttrLength) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_ATTRIBUTE_SIZE);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+        } else {
+            skipBytes(ClassFileH, codeAttrLength);
+        }
+        actualAttrLength += 6 + codeAttrLength;
+    }
+    return actualAttrLength;
+}
+
+
+/*=========================================================================
+* FUNCTION:      verifyConstantPoolEntry()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate constant pool index
+* INTERFACE:
+*   parameters:  constant pool, index, and expected tag
+*   returns:     nothing
+*   throws:      ClassFormatError if the index is out of range
+*                of the entry is of unexpected type
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static void verifyConstantPoolEntry(INSTANCE_CLASS_FAR CurrentClass, u2 index, u1 tag) {
+    CONSTANTPOOL_FAR ConstantPool;
+    u2 length;
+    u1 tag2;
+    ConstantPool.common_ptr_ = getDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_CONSTPOOL);
+    length = getDWordAt(ConstantPool.common_ptr_);
+
+    if (index >= length) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_CONSTANT_INDEX);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+
+    //tag2 = CONSTANTPOOL_TAGS(ConstantPool)[index];
+    tag2 = getCharAt(ConstantPool.common_ptr_ + getDWordAt(ConstantPool.common_ptr_) + index);
+    if (tag2 != tag) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_CONSTANT_TAG);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadExceptionHandlers()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the exception handling information associated
+*                with each method in a class file.
+* INTERFACE:
+*   parameters:  constant pool, classfile pointer, method pointer
+*   returns:     number of characters read from the class file
+*   throws:      ClassFormatError if any part of the exception
+*                handler table is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static u2 loadExceptionHandlers(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH) {
+    u2 numberOfHandlers = loadShort(ClassFileH);
+    if (numberOfHandlers > 0) {
+        HANDLERTABLE_FAR handlerTable;
+        METHOD_FAR thisMethod;
+        int tableSize = SIZEOF_HANDLERTABLE(numberOfHandlers);
+//#if USESTATIC
+//        handlerTable = (HANDLERTABLE)callocObject(tableSize, GCT_NOPOINTERS);
+//#else
+        handlerTable.common_ptr_ = callocPermanentObject(tableSize);
+//#endif
+        //handlerTable->length = numberOfHandlers;
+        setWordAt(handlerTable.common_ptr_ + HANDLERTABLE_LENGTH, numberOfHandlers);
+
+        thisMethod = unhand(thisMethodH);
+        //thisMethod->u.java.handlers = handlerTable;
+        setDWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_HANDLERS, handlerTable.common_ptr_);
+
+        //ASSERTING_NO_ALLOCATION
+        FOR_EACH_HANDLER(thisHandler, handlerTable)
+            u2 startPC   = loadShort(ClassFileH);
+            u2 endPC     = loadShort(ClassFileH);
+            u2 handlerPC = loadShort(ClassFileH);
+            u2 exception = loadShort(ClassFileH);
+
+            if (startPC >= getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODELENGTH) ||
+                endPC > getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODELENGTH) ||
+                startPC >= endPC ||
+                handlerPC >= getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODELENGTH)) {
+                    PSTR_FAR msg;
+                    msg.common_ptr_ = address_24_of(KVM_MSG_BAD_EXCEPTION_HANDLER_FOUND);
+                    raiseExceptionWithMessage(ClassFormatError, msg);
+            }
+            if (exception != 0) {
+                INSTANCE_CLASS_FAR icf;
+                icf.common_ptr_ = getDWordAt(thisMethod.common_ptr_ + METHOD_OFCLASS);
+                verifyConstantPoolEntry(icf, exception, CONSTANT_Class);
+            }
+            //thisHandler->startPC   = startPC;
+            //thisHandler->endPC     = endPC;
+            //thisHandler->handlerPC = handlerPC;
+            //thisHandler->exception = exception;
+            setWordAt(thisHandler.common_ptr_ + HANDLER_STARTPC,    startPC);
+            setWordAt(thisHandler.common_ptr_ + HANDLER_ENDPC,      endPC);
+            setWordAt(thisHandler.common_ptr_ + HANDLER_HANDLERPC,  handlerPC);
+            setWordAt(thisHandler.common_ptr_ + HANDLER_EXCEPTION,  exception);
+        END_FOR_EACH_HANDLER
+           // END_ASSERTING_NO_ALLOCATION
+    } else {
+        /* Method has no associated exception handlers */
+        //unhand(thisMethodH)->u.java.handlers = NULL;
+        setDWordAt(thisMethodH->common_ptr_ + METHOD_U + JAVA_HANDLERS, 0);
+    }
+    return (numberOfHandlers * 8 + 2);
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadStackMaps()
+* TYPE:          private class file load operation
+* OVERVIEW:      Load the stack maps associated
+*                with each method in a class file.
+* INTERFACE:
+*   parameters:  classfile pointer, method pointer, constant pool
+*   returns:     number of characters read from the class file
+*   throws:      ClassFormatError if any part of the stack maps
+*                is invalid
+*                (this error class is not supported by CLDC 1.0 or 1.1)
+*=======================================================================*/
+static u4 loadStackMaps(FILEPOINTER_HANDLE_FAR ClassFileH, METHOD_FAR* thisMethodH) {
+    u4 bytesRead;
+    //INSTANCE_CLASS_FAR CurrentClass = unhand(thisMethodH)->ofClass;
+    INSTANCE_CLASS_FAR CurrentClass;
+    CurrentClass.common_ptr_ = getDWordAt(thisMethodH->common_ptr_ + METHOD_OFCLASS);
+    START_TEMPORARY_ROOTS
+        unsigned short nStackMaps = loadShort(ClassFileH);
+        POINTERLIST_FAR pl;
+        pl.common_ptr_ = callocObject(SIZEOF_POINTERLIST(2 * nStackMaps), GCT_POINTERLIST);
+        {
+            DECLARE_TEMPORARY_ROOT(POINTERLIST_FAR, stackMaps, pl);
+            METHOD_FAR thisMethod = unhand(thisMethodH); /* Very volatile */
+            u2 tempSize = getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_MAXSTACK) + getWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE) + 2;
+            WORDS_FAR wf;
+            wf.common_ptr_ = mallocBytes(sizeof(u2) * tempSize);
+            {
+                DECLARE_TEMPORARY_ROOT(WORDS_FAR, stackMap, wf);
+                u2 stackMapIndex;
+
+                //stackMaps->length = nStackMaps;
+                setWordAt(stackMaps.common_ptr_ + POINTERLIST_LENGTH, nStackMaps);
+                //unhand(thisMethodH)->u.java.stackMaps.verifierMap = stackMaps;
+                setDWordAt(thisMethodH->common_ptr_ + METHOD_U + JAVA_STACKMAPS, stackMaps.common_ptr_);
+
+                bytesRead = 2;
+
+                for (stackMapIndex = 0; stackMapIndex < nStackMaps; stackMapIndex++) {
+                    u2 i, index;
+                    /* Any allocation happens at the end, so we have to dereference this
+                    * at least once through each loop.
+                    */
+                    thisMethod = unhand(thisMethodH);
+                    /* Read in the offset */
+                    //stackMaps->data[stackMapIndex + nStackMaps].cell =
+                    //    loadShort(ClassFileH);
+                    setDWordAt(stackMaps.common_ptr_ + POINTERLIST_DATA + (stackMapIndex + nStackMaps) * sizeof(cellOrPointer), loadShort(ClassFileH));
+                    bytesRead += 2;
+                    for (index = 0, i = 0 ; i < 2; i++) {
+                        u2 j;
+                        u2 size = loadShort(ClassFileH);
+                        u2 size_delta = 0;
+                        u2 size_index = index++;
+                        u2 maxSize = (i == 0 ? getWordAt(thisMethod.common_ptr_ + METHOD_FRAMESIZE) : getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_MAXSTACK));
+                        bytesRead += 2;
+                        for (j = 0; j < size; j++) {
+                            u1 stackType = loadByte(ClassFileH);
+                            bytesRead += 1;
+
+                            /* We are reading the j-th element of the stack map.
+                            * This corresponds to the value in the j + size_delta'th
+                            * local register or stack location
+                            */
+                            if (j + size_delta >= maxSize) {
+                                PSTR_FAR msg;
+                                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_STACKMAP);
+                                raiseExceptionWithMessage(ClassFormatError, msg);
+                            } else if (stackType == ITEM_NewObject) {
+                                u2 instr = loadShort(ClassFileH);
+                                bytesRead += 2;
+                                if (instr >= getWordAt(thisMethod.common_ptr_ + METHOD_U + JAVA_CODELENGTH)) {
+                                    PSTR_FAR msg;
+                                    msg.common_ptr_ = address_24_of(KVM_MSG_BAD_NEWOBJECT);
+                                    raiseExceptionWithMessage(ClassFormatError, msg);
+                                }
+
+                                //stackMap[index++] = ENCODE_NEWOBJECT(instr);
+                                setWordAt(stackMap.common_ptr_ + (index++) * sizeof(u2), ENCODE_NEWOBJECT(instr));
+
+                            } else if (stackType < ITEM_Object) {
+                                //stackMap[index++] = stackType;
+                                setWordAt(stackMap.common_ptr_ + (index++) * sizeof(u2), stackType);
+                                if (stackType == ITEM_Long || stackType == ITEM_Double){
+                                    if (j + size_delta + 1 >= maxSize) {
+                                        PSTR_FAR msg;
+                                        msg.common_ptr_ = address_24_of(KVM_MSG_BAD_STACKMAP);
+                                        raiseExceptionWithMessage(ClassFormatError, msg);
+                                    }
+                                    //stackMap[index++] = (stackType == ITEM_Long)
+                                    //    ? ITEM_Long_2
+                                    //    : ITEM_Double_2;
+                                    setWordAt(stackMap.common_ptr_ + (index++) * sizeof(u2), (stackType == ITEM_Long)
+                                        ? ITEM_Long_2
+                                        : ITEM_Double_2);
+
+                                    size_delta++;
+                                }
+                            } else if (stackType == ITEM_Object) {
+                                u2 classIndex = loadShort(ClassFileH);
+                                CONSTANTPOOL_FAR ConstantPool;// = CurrentClass->constPool;
+                                CLASS_FAR clazz;
+                                ConstantPool.common_ptr_ = getDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_CONSTPOOL);
+                                bytesRead += 2;
+                                verifyConstantPoolEntry(CurrentClass, classIndex, CONSTANT_Class);
+                                //clazz = CP_ENTRY(classIndex).clazz;
+                                clazz.common_ptr_ = getDWordAt(ConstantPool.common_ptr_ + classIndex * sizeof(union constantPoolEntryStruct));
+                                //stackMap[index++] = clazz->key;
+                                setWordAt(stackMap.common_ptr_ + (index++) * sizeof(u2), getWordAt(clazz.common_ptr_ + CLASS_KEY));
+                            } else {
+                                PSTR_FAR msg;
+                                msg.common_ptr_ = address_24_of(KVM_MSG_BAD_STACKMAP);
+                                raiseExceptionWithMessage(ClassFormatError, msg);
+                            }
+                        }
+                        //stackMap[size_index] = size + size_delta;
+                        setWordAt(stackMap.common_ptr_ + size_index * sizeof(u2), size + size_delta);
+                    }
+
+                    /* We suspect that there will be a lot of duplication, so it's worth
+                    * it to check and see if we already have this identical string */
+                    for (i = 0; ; i++) {
+                        if (i == stackMapIndex) {
+                            /* We've reached the end, and no duplicate found */
+                            far_ptr temp = mallocBytes(index * sizeof(u2));
+                            hmemcpy(temp, stackMap.common_ptr_, index * sizeof(u2));
+                            //stackMaps->data[stackMapIndex].cellp = (cell*)temp;
+                            setDWordAt(stackMaps.common_ptr_ + POINTERLIST_DATA + stackMapIndex * sizeof(cellOrPointer), temp);
+                            break;
+                        } else {
+                            //unsigned short *tempMap =
+                            //    (unsigned short *)stackMaps->data[i].cellp;
+
+                            WORDS_FAR tempMap;
+                            tempMap.common_ptr_ = stackMaps.common_ptr_ + POINTERLIST_DATA + i * sizeof(cellOrPointer);
+                            {
+                                /* get length of stored map entry 0 */
+                                u2 tempLen = getWordAt(tempMap.common_ptr_);
+                                /* and length of current map being created */
+                                u2 mapLen = getWordAt(stackMap.common_ptr_);
+                                /* add in entry 1 */
+                                tempLen += getWordAt(tempMap.common_ptr_ + (tempLen + 1) * sizeof(u2)) + 2;
+                                mapLen += getWordAt(stackMap.common_ptr_ + (mapLen + 1) * sizeof(u2)) + 2;
+                                /* if lens not the same, not a duplicate */
+                                if (mapLen == tempLen &&
+                                    hmemcmp(stackMap.common_ptr_, tempMap.common_ptr_,
+                                    mapLen * sizeof(u2)) == 0) {
+                                        /* We have found a duplicate */
+                                        //stackMaps->data[stackMapIndex].cellp = (cell*)tempMap;
+                                        setDWordAt(stackMaps.common_ptr_ + POINTERLIST_DATA + stackMapIndex * sizeof(cellOrPointer), tempMap.common_ptr_);
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    END_TEMPORARY_ROOTS
+    return bytesRead;
 }
