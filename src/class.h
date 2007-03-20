@@ -98,6 +98,7 @@ struct instanceClassStruct {
 #define INSTANCE_CLASS_FIELDTABLE   offsetof(struct instanceClassStruct, fieldTable)
 #define INSTANCE_CLASS_METHODTABLE   offsetof(struct instanceClassStruct, methodTable)
 #define INSTANCE_CLASS_FINALIZER   offsetof(struct instanceClassStruct, finalizer)
+#define INSTANCE_CLASS_STATICFIELDS   offsetof(struct instanceClassStruct, staticFields)
 
 /* ARRAY_CLASS */
 struct arrayClassStruct {

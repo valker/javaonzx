@@ -325,7 +325,7 @@ non_banked far_ptr  hstrchr(far_ptr farString, char c )
 {
     const u1 mmu = getMMUState();
     PSTR_FAR r;
-    const u1* string = farString;
+    const u1* string = (const u1*) farString;
 
     setPage(GETPAGE(farString));
 
