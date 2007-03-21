@@ -6,7 +6,7 @@
 #include "fields.h"
 #include "frame.h"
 #include "messages.h"
-
+//
 HASHTABLE_FAR ClassTable;           /* package/base to CLASS */
 HASHTABLE_FAR UTFStringTable;       /* char* to unique instance */
 
@@ -17,20 +17,20 @@ PSTR_FAR UStringInfo(PUTF_HASH_ENTRY_FAR hash) {
     r.common_ptr_ += offsetof(struct UTF_Hash_Entry, string);
     return r;
 }
-
-
+//
+//
 typedef far_ptr_of(CLASS_FAR) CLASS_FAR_FAR;
-/*=========================================================================
-* FUNCTION:      change_Name_to_CLASS, change_Key_to_CLASS
-* OVERVIEW:      Internal function used by internString and internClass.
-*                It maps a C string to a specific location capable of
-*                holding a value.  This location is initially NULL.
-* INTERFACE:
-*   parameters:  table:  A hashtable whose buckets are MAPPING_HASH_ENTRY.
-*                string:  A C string
-*   returns:     A unique location, capable of holding a value, corresponding
-*                to that string.
-*=======================================================================*/
+///*=========================================================================
+//* FUNCTION:      change_Name_to_CLASS, change_Key_to_CLASS
+//* OVERVIEW:      Internal function used by internString and internClass.
+//*                It maps a C string to a specific location capable of
+//*                holding a value.  This location is initially NULL.
+//* INTERFACE:
+//*   parameters:  table:  A hashtable whose buckets are MAPPING_HASH_ENTRY.
+//*                string:  A C string
+//*   returns:     A unique location, capable of holding a value, corresponding
+//*                to that string.
+//*=======================================================================*/
 CLASS_FAR change_Name_to_CLASS(UString_FAR packageName, UString_FAR baseName) { 
     HASHTABLE_FAR   table = ClassTable;
     u2    hash;
@@ -125,37 +125,37 @@ UString_FAR getUStringNear(const char* string) {
     fp.common_ptr_ = (far_ptr) string;
     return getUString(fp);
 }
-
-
-/*=========================================================================
-* FUNCTION:      getUString, getUStringX
-* OVERVIEW:      Returns a unique instance of a given C string
-* INTERFACE:
-*   parameters:  string:       Pointer to an array of characters
-*                stringLength: Length of string (implicit for getUString)
-*   returns:     A unique instance.  If strcmp(x,y)==0, then
-*                 getUString(x) == getUString(y), and
-*                 strcmp(UStringInfo(getUString(x)), x) == 0.
-* 
-* Note that getUString actually allows "string"s with embedded NULLs.
-* Two arrays of characters are equal only if they have the same length 
-* and the same characters.
-*=======================================================================*/
-
+//
+//
+///*=========================================================================
+//* FUNCTION:      getUString, getUStringX
+//* OVERVIEW:      Returns a unique instance of a given C string
+//* INTERFACE:
+//*   parameters:  string:       Pointer to an array of characters
+//*                stringLength: Length of string (implicit for getUString)
+//*   returns:     A unique instance.  If strcmp(x,y)==0, then
+//*                 getUString(x) == getUString(y), and
+//*                 strcmp(UStringInfo(getUString(x)), x) == 0.
+//* 
+//* Note that getUString actually allows "string"s with embedded NULLs.
+//* Two arrays of characters are equal only if they have the same length 
+//* and the same characters.
+//*=======================================================================*/
+//
 UString_FAR getUString(PSTR_FAR string) { 
     return getUStringXPtr(string, 0, hstrlen(string.common_ptr_));
 }
-
-
+//
+//
 typedef far_ptr_of(PUTF_HASH_ENTRY_FAR) PUTF_HASH_ENTRY_FAR_FAR;
-
+//
 UString_FAR getUStringX(CONST_CHAR_HANDLE_FAR nameH, u2 offset, u2 length) {
     PSTR_FAR start;
     readHmem(&start, nameH.common_ptr_, sizeof(start));
     return getUStringXPtr(start, offset, length);
 }
-
-
+//
+//
 UString_FAR getUStringXPtr(PSTR_FAR start, u2 offset, u2 stringLength)
 {
     PSTR_FAR string;

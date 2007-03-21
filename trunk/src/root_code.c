@@ -34,7 +34,7 @@ unsigned char * getMemory(int offset);
 #define MAKEPTR(p) (p = (p != 0) ? getPtr(p) : 0);
 void* getPtr(void* p);
 #endif
-
+//
 non_banked void initPage(void)
 {
   ((HighMemoryDescriptor*)GETMEMORY(MEM_PAGE_START_ADDR))->type_ = GCT_FREE;
@@ -45,10 +45,10 @@ non_banked void initPage(void)
     ((HighMemoryDescriptor*)GETMEMORY(s))->type_ = GCT_END;
   }
 }
-
+//
 const u1* PagesPtr;
 u1 PagesCounter;
-
+//
 non_banked void hmemInit(const u1* pages, u1 pageCounter)
 {
   const u1 stateMMU = getMMUState();
@@ -61,7 +61,7 @@ non_banked void hmemInit(const u1* pages, u1 pageCounter)
   }
   restoreMMUState(stateMMU);
 }
-
+//
 non_banked void* tryAlloc(u2 size) {
   HighMemoryDescriptor* h = (HighMemoryDescriptor*)GETMEMORY(MEM_PAGE_START_ADDR);
   void* p = 0;
@@ -86,7 +86,7 @@ non_banked void* tryAlloc(u2 size) {
   MAKEPTR(p);
   return p;
 }
-
+//
 non_banked far_ptr hAlloc(u2 size) {
   far_ptr_conv r;
   u1 cnt = PagesCounter;
@@ -109,29 +109,29 @@ non_banked far_ptr hAlloc(u2 size) {
   restoreMMUState(mmu);
   return r.ptr_;
 }
-
+//
 non_banked void hmemset(far_ptr ptr, u1 what, u2 howMany) {
   const u1 mmu = getMMUState();
   setPage(GETPAGE(ptr));
   memset(GETMEMORY(ptr),what,howMany);
   restoreMMUState(mmu);
 }
-
+//
 non_banked void writeHmem(const void* src, far_ptr dest, u2 count) {
   const u1 mmu = getMMUState();
   setPage(GETPAGE(dest));
   memcpy((u1*)dest, src, count);
   restoreMMUState(mmu);
 }
-
+//
 non_banked void readHmem(void* dest, far_ptr source, u2 count) {
     const u1 mmu = getMMUState();
     setPage(GETPAGE(source));
     memcpy(dest, (u1*)source, count);
     restoreMMUState(mmu);
 }
-
-
+//
+//
 non_banked void setBlockType(FPD ptr, GCT_ObjectType type) {
     const u1 mmu = getMMUState();
     setPage(GETPAGE(ptr.common_ptr_));
@@ -141,8 +141,8 @@ non_banked void setBlockType(FPD ptr, GCT_ObjectType type) {
     }
     restoreMMUState(mmu);
 }
-
-
+//
+//
 non_banked u2     hstrlen(far_ptr ptr) {
     const u1 mmu = getMMUState();
     u2 r = 0;
@@ -154,7 +154,7 @@ non_banked u2     hstrlen(far_ptr ptr) {
     restoreMMUState(mmu);
     return r;
 }
-
+//
 /*=========================================================================
  * FUNCTION:      stringHash
  * OVERVIEW:      Returns a hash value for a C string
@@ -176,7 +176,7 @@ non_banked u2 stringHash(PSTR_FAR s, i2 length)
     restoreMMUState(mmu);
     return raw_hash;
 }
-
+//
 #define BUF_SIZE 64 
 non_banked i1       hmemcmp(far_ptr a1, far_ptr a2, u2 length)
 {
@@ -216,7 +216,7 @@ non_banked void     hmemcpy(far_ptr dest, far_ptr src, u2 length) {
     }
     restoreMMUState(mmu);
 }
-
+//
 #define GET_TYPE_AT_IMPL(TYPE,FUNC_NAME)        \
     non_banked TYPE FUNC_NAME(far_ptr src) {    \
         const u1 mmu = getMMUState();           \
@@ -226,7 +226,7 @@ non_banked void     hmemcpy(far_ptr dest, far_ptr src, u2 length) {
         restoreMMUState(mmu);                   \
         return r;                               \
     }
-
+//
 #define SET_TYPE_AT_IMPL(TYPE,FUNC_NAME)                    \
     non_banked void FUNC_NAME(far_ptr dest, TYPE data) {    \
         const u1 mmu = getMMUState();                       \
@@ -234,62 +234,14 @@ non_banked void     hmemcpy(far_ptr dest, far_ptr src, u2 length) {
         *(TYPE*)dest = data;                                \
         restoreMMUState(mmu);                               \
     }
-
+//
 GET_TYPE_AT_IMPL(u1,getCharAt)
 GET_TYPE_AT_IMPL(u2,getWordAt)
 GET_TYPE_AT_IMPL(u4,getDWordAt)
 SET_TYPE_AT_IMPL(u1,setCharAt)
 SET_TYPE_AT_IMPL(u2,setWordAt)
 SET_TYPE_AT_IMPL(u4,setDWordAt)
-/*
-non_banked u1       getCharAt(far_ptr src) {
-    const u1 mmu = getMMUState();
-    u1 r;
-    setPage(GETPAGE(src));
-    r = *(u1*)src;
-    restoreMMUState(mmu);
-    return r;
-}
-
-non_banked void     setCharAt(far_ptr dest, char c) {
-    const u1 mmu = getMMUState();
-    setPage(GETPAGE(dest));
-    *(char*)dest = c;
-    restoreMMUState(mmu);
-}
-
-non_banked u2       getWordAt(far_ptr src) {
-    const u1 mmu = getMMUState();
-    u2 r;
-    setPage(GETPAGE(src));
-    r = *(const u2*)src;
-    restoreMMUState(mmu);
-    return r;
-}
-non_banked void     setWordAt(far_ptr dest, u2 w) {
-    const u1 mmu = getMMUState();
-    setPage(GETPAGE(dest));
-    *(u2*)dest = w;
-    restoreMMUState(mmu);
-}
-
-non_banked u4       getDWordAt(far_ptr src) {
-    const u1 mmu = getMMUState();
-    u4 r;
-    setPage(GETPAGE(src));
-    r = *(const u4*)src;
-    restoreMMUState(mmu);
-    return r;
-}
-non_banked void     setDWordAt(far_ptr dest, u4 dw) {
-    const u1 mmu = getMMUState();
-    setPage(GETPAGE(dest));
-    *(u4*)dest = dw;
-    restoreMMUState(mmu);
-
-}
-*/
-
+//
 non_banked i1       hstrcmp(far_ptr str1, far_ptr str2) {
     const u1 mmu = getMMUState();
     i1 r = 0;
@@ -319,8 +271,8 @@ non_banked i1       hstrcmp(far_ptr str1, far_ptr str2) {
     restoreMMUState(mmu);
     return r;
 }
-
-
+//
+//
 non_banked far_ptr  hstrchr(far_ptr farString, char c )
 {
     const u1 mmu = getMMUState();

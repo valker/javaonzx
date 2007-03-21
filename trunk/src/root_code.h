@@ -22,6 +22,8 @@ non_banked void     setWordAt(far_ptr dest, u2 w);
 non_banked u4       getDWordAt(far_ptr src);
 non_banked void     setDWordAt(far_ptr dest, u4 dw);
 
+non_banked void     SET_LONG_FROM_HALVES(far_ptr dest, u4 lo, u4 hi);
+
 non_banked far_ptr  hAlloc(u2 size);
 
 non_banked u1       getMMUState(void);

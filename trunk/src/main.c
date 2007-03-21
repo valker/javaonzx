@@ -16,16 +16,13 @@
 #include "root_code.h"
 #include "class.h"
 
-int RequestedHeapSize;
 
 u1 class_image[]={
 #include "test_class.h"
 };
-
-
-void initSystemClasses(void) {
-}
-
+//
+//
+//
 static struct throwableScopeStruct ThrowableScopeStruct = {
    /* env =           */ 0,
    /* throwable =     */ 0,
@@ -33,23 +30,21 @@ static struct throwableScopeStruct ThrowableScopeStruct = {
    /* outer =         */ 0
 };
 THROWABLE_SCOPE ThrowableScope = &ThrowableScopeStruct;
-void* VMScope = NULL;
+void* VMScope = 0;
 int   VMExitCode = 0;
-
-
-/* Shared string buffer that is used internally by the VM */
-/* NOTE: STRINGBUFFERSIZE is defined in main.h */
+//
+//
 char str_buffer[STRINGBUFFERSIZE];
-
-
-
+//
+//
+//
 void fatalVMError(const char* p) {
   VM_EXIT(128);
 }
-
+//
 void InitializeGlobals(void);
 void InitializeMemoryManagement(void);
-
+//
 void initEmulator(void);
 
 void main(void)
@@ -65,12 +60,9 @@ void main(void)
   
 
 #ifndef ZX
-  initEmulator();
+    initEmulator();
 #endif
-  RequestedHeapSize = 0x4000 - 2 * sizeof(HighMemoryDescriptor);
-  hmemInit(&pages[0], sizeof(pages));
-  initSystemClasses();
-  {
+    hmemInit(&pages[0], sizeof(pages));
     TRY {
       VM_START {
         InitializeGlobals();
@@ -80,5 +72,4 @@ void main(void)
       } VM_END_FINISH
     } CATCH(e) {
     } END_CATCH
-  }
 }

@@ -38,6 +38,7 @@ INSTANCE_CLASS_FAR JavaLangError;
 INSTANCE_CLASS_FAR JavaLangOutOfMemoryError;
 
 
+
 ARRAY_CLASS_FAR PrimitiveArrayClasses[T_LASTPRIMITIVETYPE + 1];
 
 NameTypeKey initNameAndType;   /* void <init>() */
@@ -153,9 +154,7 @@ CLASS_FAR getRawClass(PSTR_FAR name) {
 *   parameters:  <none>
 *   returns:     <nothing>
 *=======================================================================*/
-
-void InitializeJavaSystemClasses(void)
-{
+void InitializeJavaSystemClasses(void) {
 //#if !ROMIZING
     int i;
     static const char javaLangObject[] = "java/lang/Object";
@@ -296,16 +295,20 @@ void InitializeJavaSystemClasses(void)
     JavaLangOutOfMemoryError.common_ptr_ = getClass(OutOfMemoryError).common_ptr_;
     OutOfMemoryObject.common_ptr_ = instantiate(JavaLangOutOfMemoryError).common_ptr_;
     makeGlobalRoot((cell **)&OutOfMemoryObject);
-    StackOverflowObject = OutOfMemoryObject;
+    
+    //StackOverflowObject = OutOfMemoryObject; TODO come back
+    
     /* If we had full JLS/JVMS error classes:
     StackOverflowObject =
     (THROWABLE_INSTANCE)instantiate(
     (INSTANCE_CLASS)getClass(StackOverflowError));
     */
-    makeGlobalRoot((cell **)&StackOverflowObject);
+    
+    //makeGlobalRoot((cell **)&StackOverflowObject); // TODO come back
+    
 }
-
-
+//
+//
 /*=========================================================================
 * FUNCTION:      getArrayClass()
 * TYPE:          private helper function

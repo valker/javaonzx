@@ -37,6 +37,8 @@ union constantPoolEntryStruct {
     UString_FAR     ustring;
 };
 
+#define CONST_ENTRY_SIZE (sizeof(union constantPoolEntryStruct))
+
 
 struct constantPoolStruct { 
     union constantPoolEntryStruct entries[1];
