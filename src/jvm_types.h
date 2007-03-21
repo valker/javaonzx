@@ -265,13 +265,16 @@ typedef struct  {
  typedef u2 MethodTypeKey;
  typedef u2 FieldTypeKey;
  typedef union {
-     struct {
+     struct NTStruct {
              u2 nameKey;
              u2 typeKey; /* either MethodTypeKey or FieldTypeKey */
      } nt;
      u4 i;
  } NameTypeKey;
  
+#define NTKEY_NAMEKEY offsetof(struct NTStruct, nameKey)
+#define NTKEY_TYPEKEY offsetof(struct NTStruct, typeKey)
+
 #define STRINGBUFFERSIZE  512
 
  /* Shared string buffer that is used internally by the VM */

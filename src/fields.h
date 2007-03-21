@@ -64,6 +64,7 @@ struct fieldStruct {
 
 #define SIZEOF_FIELD sizeof(struct fieldStruct)
 
+#define FIELD_NAMETYPEKEY   offsetof(struct fieldStruct, nameTypeKey)
 #define FIELD_ACCESSFLAGS   offsetof(struct fieldStruct, accessFlags)
 #define FIELD_U             offsetof(struct fieldStruct, u)
 #define FIELD_OFCLASS       offsetof(struct fieldStruct, ofClass)
