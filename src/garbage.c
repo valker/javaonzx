@@ -11,6 +11,8 @@
 #include "root_code.h"
 #include "class.h"
 #include "seh.h"
+#include "messages.h"
+#include "frame.h"
 
 ///* VARIABLES */
 int TemporaryRootsLength;
@@ -35,6 +37,7 @@ void InitializeHeap(void);
 // *   returns:     <nothing>
 // *=======================================================================*/
 void garbageCollect(i2 moreMemory) {
+  (void)moreMemory;
 }
 //
 ///*=========================================================================
@@ -123,4 +126,14 @@ far_ptr mallocObject(u2 size, GCT_ObjectType type)
 far_ptr mallocBytes(u2 size)
 {
     return mallocObject(size, GCT_NOPOINTERS);
+}
+
+void makeGlobalRoot(far_ptr object)
+{
+    int index = GlobalRootsLength;
+    if (index >= MAXIMUM_GLOBAL_ROOTS) {
+        fatalError(KVM_MSG_GLOBAL_ROOT_OVERFLOW);
+    }
+    GlobalRoots[index] = object;
+    GlobalRootsLength = index + 1;
 }

@@ -294,7 +294,7 @@ void InitializeJavaSystemClasses(void) {
     }*/
     JavaLangOutOfMemoryError.common_ptr_ = getClass(OutOfMemoryError).common_ptr_;
     OutOfMemoryObject.common_ptr_ = instantiate(JavaLangOutOfMemoryError).common_ptr_;
-    makeGlobalRoot((cell **)&OutOfMemoryObject);
+    makeGlobalRoot(OutOfMemoryObject.common_ptr_);
     
     //StackOverflowObject = OutOfMemoryObject; TODO come back
     
