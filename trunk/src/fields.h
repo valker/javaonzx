@@ -7,6 +7,8 @@
 #ifndef FIELDS_H_INCLUDED
 #define FIELDS_H_INCLUDED
 
+#include "jvm_types.h"
+
 /*  METHOD */
 struct methodStruct {
     NameTypeKey   nameTypeKey;
@@ -89,6 +91,7 @@ struct methodTableStruct {
     (sizeof(struct fieldTableStruct) + (n - 1) * SIZEOF_FIELD)
 
 #define METHODTABLE_METHODS offsetof(struct methodTableStruct, methods)
+#define METHODTABLE_LENGTH offsetof(struct methodTableStruct, length)
 
 
 NameTypeKey getNameAndTypeKey(PSTR_FAR name, PSTR_FAR type);
@@ -104,10 +107,21 @@ FieldTypeKey change_FieldSignature_to_Key(CONST_CHAR_HANDLE_FAR, i2 offset, i2 l
     FIELD_FAR __first_field__;                                          \
     FIELD_FAR __end_field__;                                            \
     FIELD_FAR __var__;                                                  \
-    __first_field__.common_ptr_ = fieldTable.common_ptr_ + offsetof(struct fieldTableStruct,fields); \
-    __end_field__.common_ptr_ = __first_field__.common_ptr_ + getWordAt(fieldTable.common_ptr_) * sizeof(struct fieldStruct); \
-    for (__var__ = __first_field__; __var__.common_ptr_ < __end_field__.common_ptr_; __var__.common_ptr_ += sizeof(struct fieldStruct)) { 
+    __first_field__.common_ptr_ = fieldTable.common_ptr_ + FIELDTABLE_FIELDS; \
+    __end_field__.common_ptr_ = __first_field__.common_ptr_ + getWordAt(fieldTable.common_ptr_) * SIZEOF_FIELD; \
+    for (__var__ = __first_field__; __var__.common_ptr_ < __end_field__.common_ptr_; __var__.common_ptr_ += SIZEOF_FIELD) { 
 
 #define END_FOR_EACH_FIELD } } }
+
+#define FOR_EACH_METHOD(__var__, methodTable) {                                                                                         \
+    if (methodTable.common_ptr_ != 0) {                                                                                                 \
+    METHOD_FAR __first_method__;                                                                                                        \
+    METHOD_FAR __end_method__;                                                                                                          \
+    METHOD_FAR __var__;                                                                                                                 \
+    __first_method__.common_ptr_ = methodTable.common_ptr_ + METHODTABLE_METHODS;                                                       \
+    __end_method__.common_ptr_ = __first_method__.common_ptr_ + getWordAt(methodTable.common_ptr_ + METHODTABLE_LENGTH) * SIZEOF_METHOD;\
+    for (__var__ = __first_method__; __var__.common_ptr_ < __end_method__.common_ptr_; __var__.common_ptr_ += SIZEOF_METHOD) {
+
+#define END_FOR_EACH_METHOD } } }
 
 #endif
