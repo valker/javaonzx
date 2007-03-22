@@ -20,6 +20,7 @@
 #include "garbage.h"
 #include "seh.h"
 #include "frame.h"
+#include "main.h"
 
 static PSTR_FAR UnfoundException = {0};
 static PSTR_FAR UnfoundExceptionMsg = {0};
@@ -149,7 +150,7 @@ void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR msg) {
     raiseException(exceptionClassName);
 }
 
-static const u1 * copyStrToBuffer(u1* buffer, far_ptr str)
+const u1 * copyStrToBuffer(u1* buffer, far_ptr str)
 {
     const u2 nameLength = hstrlen(str);
     readHmem(buffer, str, nameLength);
@@ -248,4 +249,60 @@ static THROWABLE_INSTANCE_FAR getExceptionInstance(PSTR_FAR name, PSTR_FAR msg) 
     UnfoundExceptionMsg.common_ptr_ = 0;
 
     return exception;
+}
+
+
+/*=========================================================================
+* FUNCTION:      raiseException()
+* TYPE:          internal exception handling operation
+* OVERVIEW:      Raise an exception.  This operation is intended
+*                to be used from within the VM only.  It should
+*                be used for reporting only those exceptions and
+*                errors that are known to be "safe" and "harmless",
+*                i.e., the internal consistency and integrity of
+*                the VM should not be endangered in any way.
+*
+*                Upon execution, the operation tries to load the
+*                exception class with the given name, instantiate an
+*                instance of that class, and
+*                passes the object to the exception handler routines
+*                of the VM. The operation will fail if the class can't
+*                be found or there is not enough memory to load it or
+*                create an instance of it.
+* INTERFACE:
+*   parameters:  exception class name
+*   returns:     <nothing>
+* NOTE:          Since this operation needs to allocate two new objects
+*                it should not be used for reporting memory-related
+*                problems.
+*=======================================================================*/
+void raiseException(PSTR_FAR exceptionClassName)
+{
+//#if INCLUDEDEBUGCODE
+//    /* Turn off the allocation guard */
+//    NoAllocation = 0;
+//#endif /* INCLUDEDEBUGCODE */
+    PSTR_FAR msg = {0};
+    THROW(getExceptionInstance(exceptionClassName, msg))
+}
+
+
+/*=========================================================================
+* FUNCTION:      fatalError()
+* TYPE:          internal error handling operation
+* OVERVIEW:      Report a fatal error indicating that the execution
+*                of erroneous Java code might have endangered the
+*                integrity of the VM. VM will be stopped. This
+*                operation should be called only the from inside the VM.
+* INTERFACE:
+*   parameters:  error message string.
+*   returns:     <nothing>
+*=======================================================================*/
+void fatalError(const char* errorMessage)
+{
+    //if (INCLUDEDEBUGCODE) {
+    //    printVMstatus();
+    //}
+    AlertUser(errorMessage);
+    VM_EXIT(FATAL_ERROR_EXIT_CODE);
 }

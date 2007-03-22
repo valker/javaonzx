@@ -49,7 +49,7 @@ NameTypeKey mainNameAndType;   /* void main(String[]) */
 METHOD_FAR RunCustomCodeMethod;
 
 
-CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length) {
+CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length) {
     CLASS_FAR result;
     //    const char *start = unhand(nameH);
     PSTR_FAR start;
@@ -682,4 +682,156 @@ getClassName_inBuffer(CLASS_FAR clazz, PSTR_FAR resultBuffer) {
         setCharAt(to.common_ptr_++, '\0');
         return to;
     }
+}
+
+
+/*=========================================================================
+* FUNCTION:      typeCodeToSignature, signatureToTypeCode
+* TYPE:          private function
+* OVERVIEW:      Converts signature characters to the corresponding
+*                type code small integer, and back.
+*=======================================================================*/
+char typeCodeToSignature(char typeCode) {
+    switch(typeCode) {
+        case T_CHAR :    return 'C';
+        case T_BYTE :    return 'B';
+        case T_BOOLEAN : return 'Z';
+        case T_FLOAT :   return 'F';
+        case T_DOUBLE :  return 'D';
+        case T_SHORT :   return 'S';
+        case T_INT :     return 'I';
+        case T_LONG :    return 'J';
+        case T_VOID:     return 'V';
+        case T_CLASS:    return 'L';
+        default :    fatalVMError(KVM_MSG_BAD_SIGNATURE); return 0;
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      instantiateString(), instantiateInternedString()
+* TYPE:          constructor
+* OVERVIEW:      Create an initialized Java-level string object.
+* INTERFACE:
+*   parameters:  UTF8 String containing the value of the new string object
+*                number of bytes in the UTF8 string
+*   returns:     pointer to array object instance
+* NOTE:          String arrays are not intended to be manipulated
+*                directly; they are manipulated from within instances
+*                of 'java.lang.String'.
+*=======================================================================*/
+STRING_INSTANCE_FAR instantiateString(PSTR_FAR stringArg, u2 utflength) {
+    u2 unicodelength;
+    STRING_INSTANCE_FAR result;
+    START_TEMPORARY_ROOTS
+        DECLARE_TEMPORARY_ROOT(PSTR_FAR, string, stringArg);
+        DECLARE_TEMPORARY_ROOT(SHORTARRAY_FAR, chars, createCharArray(string, utflength, &unicodelength, FALSE));
+        result.common_ptr_ = instantiate(JavaLangString).common_ptr_;
+        /* We can't do any garbage collection, since result isn't protected */
+
+        //result->offset = 0;
+        setWordAt(result.common_ptr_ + STRINST_OFFSET, 0);
+        //result->length = unicodelength;
+        setWordAt(result.common_ptr_ + STRINST_LENGTH, unicodelength);
+        //result->array = chars;
+        setDWordAt(result.common_ptr_ + STRINST_ARRAY, chars.common_ptr_);
+    END_TEMPORARY_ROOTS
+    return result;
+}
+
+
+/*=========================================================================
+* FUNCTION:      createCharArray()
+* TYPE:          constructor (internal use only)
+* OVERVIEW:      Create a character array. Handle Utf8 input properly.
+*=======================================================================*/
+
+SHORTARRAY_FAR createCharArray(PSTR_FAR utf8stringArg, u2 utf8length, u2 *unicodelengthP, BOOL isPermanent) {
+    u2 unicodelength = 0;
+    int i;
+    SHORTARRAY_FAR newArray;
+    PSTR_FAR p, end;
+    int size, objSize;
+
+    START_TEMPORARY_ROOTS
+        DECLARE_TEMPORARY_ROOT(PSTR_FAR, utf8string, utf8stringArg);
+        for (p = utf8string, end.common_ptr_ = p.common_ptr_ + utf8length;  p.common_ptr_ < end.common_ptr_;  ) {
+            utf2unicode(&p);
+            unicodelength++;
+        }
+        size = (unicodelength * sizeof(u2));
+        objSize = SIZEOF_SHORT_ARRAY(size);
+
+        /* Allocate room for the character array */
+        newArray.common_ptr_ = isPermanent
+            ? 0 //callocPermanentObject(objSize)
+            : callocObject(objSize, GCT_ARRAY);
+
+        //newArray->ofClass = PrimitiveArrayClasses[T_CHAR];
+        setDWordAt(newArray.common_ptr_, PrimitiveArrayClasses[T_CHAR].common_ptr_);
+        //newArray->length  = unicodelength;
+        setWordAt(newArray.common_ptr_ + SHORTAR_LENGTH, unicodelength);
+
+        /* Initialize the array with string contents */
+        for (p.common_ptr_ = utf8string.common_ptr_, i = 0; i < unicodelength; i++) {
+            setWordAt(newArray.common_ptr_ + SHORTAR_SDATA + i * sizeof(u2), utf2unicode(&p));
+            //newArray->sdata[i] = utf2unicode(&p);
+        }
+        *unicodelengthP = unicodelength;
+    END_TEMPORARY_ROOTS
+    return newArray;
+}
+
+
+/*=========================================================================
+* FUNCTION:      revertToRawClass()
+* TYPE:          public instance-level operation on runtime classes
+* OVERVIEW:      Return a class to the state it is in after being returned
+*                getRawClassX the first time.
+* INTERFACE:
+*   parameters:  class pointer
+*   returns:     class pointer
+*=======================================================================*/
+INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz) {
+    //memset(&(clazz->superClass),0,
+    //    sizeof(struct instanceClassStruct) - sizeof(struct classStruct));
+    hmemset(clazz.common_ptr_ + INSTANCE_CLASS_SUPERCLASS, 0, sizeof(struct instanceClassStruct) - sizeof(struct classStruct));
+    return clazz;
+}
+
+
+/*=========================================================================
+* FUNCTION:      getStringContentsSafely()
+* TYPE:          internal operation on string objects
+* OVERVIEW:      Get the contents of a string object in C/C++
+*                string format.
+* INTERFACE:
+*   parameters:  String object pointer
+*   returns:     char* to the string in C/C++ format
+*=======================================================================*/
+char* getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth) {
+    /* Get the internal unicode array containing the string */
+    SHORTARRAY_FAR thisArray;
+    u2 offset;
+    u2 length;
+    int        i;
+
+    thisArray.common_ptr_ = getDWordAt(string.common_ptr_ + STRINST_ARRAY);
+    offset = getWordAt(string.common_ptr_ + STRINST_OFFSET);
+    length = getWordAt(string.common_ptr_ + STRINST_LENGTH);
+
+
+    if ((length+1) > lth) {
+        fatalError(KVM_MSG_STRINGBUFFER_OVERFLOW);
+    }
+
+    /* Copy contents of the unicode array to the C/C++ string */
+    for (i = 0; i < length; i++) {
+        //buf[i] = (char)thisArray->sdata[offset + i];
+        buf[i] = getCharAt(thisArray.common_ptr_ + SHORTAR_SDATA + (offset + i) * sizeof(u2));
+    }
+
+    /* Terminate the C/C++ string with zero */
+    buf[length] = 0;
+    return buf;
 }

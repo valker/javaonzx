@@ -132,12 +132,13 @@ non_banked void readHmem(void* dest, far_ptr source, u2 count) {
 }
 //
 //
-non_banked void setBlockType(FPD ptr, GCT_ObjectType type) {
+non_banked void setBlockType(FPD ptr, GCT_ObjectType type, BOOL permanent) {
     const u1 mmu = getMMUState();
     setPage(GETPAGE(ptr.common_ptr_));
     {
         u1* pb = GETMEMORY(ptr.common_ptr_);
         ((HighMemoryDescriptor*)pb)->type_ = type;
+        ((HighMemoryDescriptor*)pb)->permanent_ = permanent;
     }
     restoreMMUState(mmu);
 }

@@ -21,6 +21,37 @@
 #include "fields.h"
 #include "native.h"
 #include "loader_private.h"
+#ifdef ZX
+#include "zxfile.h"
+#endif
+
+struct filePointerStruct {
+    /* If set to true, indicates a JAR file */
+    BOOL isJarFile;
+};
+
+#define FILEPOINTER_ISJARFILE offsetof(struct filePointerStruct, isJarFile)
+
+struct stdioPointerStruct {
+    BOOL isJarFile;      /* Always TRUE */
+    u4   size;           /* size of file in bytes */
+    FILE *file;          /* Pointer to class file */
+};
+
+#define STDIOPOINTER_FILE offsetof(struct stdioPointerStruct, file)
+
+struct jarPointerStruct {
+    BOOL isJarFile;      /* always FALSE */
+    u4 dataLen;          /* length of data stream */
+    u4 dataIndex;        /* current position for reading */
+    u1 data[1];
+};
+
+#define JARPOINTER_DATALEN offsetof(struct jarPointerStruct, dataLen)
+#define JARPOINTER_DATAINDEX offsetof(struct jarPointerStruct, dataIndex)
+#define JARPOINTER_DATA offsetof(struct jarPointerStruct, data)
+
+
 
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz) {
     return getWordAt(clazz.common_ptr_ + INSTANCE_CLASS_STATUS);
@@ -812,4 +843,209 @@ void loadVersionInfo(FILEPOINTER_HANDLE_FAR ClassFileH)
             msg.common_ptr_ = address_24_of(KVM_MSG_BAD_VERSION_INFO);
             raiseExceptionWithMessage(ClassFormatError, msg);
     }
+}
+
+
+/*=========================================================================
+* FUNCTION:      closeClassfile()
+* TYPE:          private class file load operation
+* OVERVIEW:      Close the given classfile. Ensure that we have
+*                reached the end of the classfile.
+* INTERFACE:
+*   parameters:  file pointer
+*   returns:     <nothing>
+*=======================================================================*/
+void closeClassfile(FILEPOINTER_HANDLE_FAR ClassFileH)
+{
+//    FILEPOINTER ClassFile = unhand(ClassFileH);
+//
+//#if INCLUDEDEBUGCODE
+//    if (traceclassloadingverbose) {
+//        fprintf(stdout, "Closing classfile\n");
+//    }
+//#endif /* INCLUDEDEBUGCODE */
+//
+//    if (ClassFile->isJarFile) {
+//        /* Close the JAR datastream.   Don't need to do anything */
+//    } else {
+//        /* Close the classfile */
+//        FILE *file = ((struct stdioPointerStruct*)ClassFile)->file;
+//        if (file != NULL) {
+//            fclose(file);
+//            ((struct stdioPointerStruct*)ClassFile)->file = NULL;
+//        }
+//    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      openClassfileInternal()
+* TYPE:          class reading
+* OVERVIEW:      Internal function used by openClassfile().
+*                It returns a FILE* for reading the class if a file exists.
+*                NULL otherwise.
+* INTERFACE:
+*   parameters:  fileName:  Name of class file to read
+*   returns:     FILE* for reading the class, or NULL.
+*=======================================================================*/
+static FILEPOINTER_FAR openClassfileInternal(BYTES_HANDLE_FAR filenameH) {
+    //int filenameLength = strlen(unhand(filenameH));
+    //int paths = ClassPathTable->length;
+    //int i;
+    //FILE *file = NULL;
+    FILEPOINTER_FAR fp;
+    fp.common_ptr_ = 0;
+
+//    START_TEMPORARY_ROOTS
+//        int fullnameLength = MaxClassPathTableLength + filenameLength + 2;
+//    DECLARE_TEMPORARY_ROOT(char*, fullname,
+//    (char*)mallocBytes(fullnameLength));
+//    DECLARE_TEMPORARY_ROOT(CLASS_PATH_ENTRY, entry, NULL);
+//    for (i = 0; i < paths && fp == NULL; i++) {
+//        entry = (CLASS_PATH_ENTRY)ClassPathTable->data[i].cellp;
+//        switch (entry->type) {
+//            case 'd':                      /* A directory */
+//                sprintf(fullname, "%s/%s", entry->name, unhand(filenameH));
+//                file = fopen(fullname, "rb");
+//                if (file != NULL) {
+//#ifndef POCKETPC
+//                    struct stat statbuf;
+//                    long filesize;
+//
+//                    if (fstat(fileno(file), &statbuf) == 0) {
+//                        filesize = statbuf.st_size;
+//                    } else {
+//                        filesize = 0;
+//                    }
+//#else
+//                    DWORD filesize;
+//                    HANDLE hfile;
+//                    WCHAR filename[MAX_PATH];
+//
+//                    MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, fullname,
+//                        -1, filename, sizeof(filename));
+//                    hfile = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
+//                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+//                    filesize = GetFileSize(hfile, NULL);
+//                    if (filesize == 0xFFFFFFFF) {
+//                        filesize = 0;
+//                    }
+//#endif  /* POCKETPC */
+//                    fp = (FILEPOINTER)
+//                        mallocBytes(sizeof(struct stdioPointerStruct));
+//                    fp->isJarFile = FALSE;
+//                    ((struct stdioPointerStruct *)fp)->size = filesize;
+//                    ((struct stdioPointerStruct *)fp)->file = file;
+//                }
+//                break;
+//
+//            case 'j':  {                   /* A JAR file */
+//                long length;
+//                struct jarPointerStruct *result = (struct jarPointerStruct*)
+//                    loadJARFileEntry(&entry->u.jarInfo, unhand(filenameH),
+//                    &length,
+//                    offsetof(struct jarPointerStruct, data[0]));
+//                if (result != NULL) {
+//                    result->isJarFile = TRUE;
+//                    result->dataLen = length;
+//                    result->dataIndex = 0;
+//                    fp = (FILEPOINTER)result;
+//                }
+//                break;
+//                       }
+//        }
+//    }
+//    END_TEMPORARY_ROOTS
+        return fp;
+}
+
+
+/*=========================================================================
+* FUNCTION:      loadByte(), loadShort(), loadCell()
+*                loadBytes, skipBytes()
+* TYPE:          private class file reading operations
+* OVERVIEW:      Read the next 1, 2, 4 or n bytes from the
+*                given class file.
+* INTERFACE:
+*   parameters:  classfile pointer
+*   returns:     unsigned char, short or integer
+* NOTE:          For safety it might be a good idea to check
+*                explicitly for EOF in these operations.
+*=======================================================================*/
+i1 loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR ClassFileH) {
+    FILEPOINTER_FAR ClassFile;
+    ClassFileH.common_ptr_ = getDWordAt(ClassFileH.common_ptr_);
+    if (!getCharAt(ClassFile.common_ptr_ + FILEPOINTER_ISJARFILE)) {
+        far_ptr_of(struct stdioPointerStruct*) fs;
+        fs.common_ptr_ = ClassFile.common_ptr_;
+        {
+            FILE *file = (FILE*) getDWordAt(fs.common_ptr_ + STDIOPOINTER_FILE);
+            return getc(file);
+
+        }
+    } else {
+        far_ptr_of(struct jarPointerStruct*) ds;
+        ds.common_ptr_ = ClassFile.common_ptr_;
+        //struct jarPointerStruct *ds = (struct jarPointerStruct *)ClassFile;
+        if (getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX)
+            < getDWordAt(ds.common_ptr_ + JARPOINTER_DATALEN)) {
+            u4 dataIndex = getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX);
+            u1 r = getCharAt(ds.common_ptr_ + JARPOINTER_DATA + dataIndex);
+            dataIndex++;
+            setDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX, dataIndex);
+            return r;
+        } else {
+            return -1;
+        }
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      openClassFile
+* TYPE:          class reading
+* OVERVIEW:      Returns a FILEPOINTER object to read the bytes of the
+*                given class name
+* INTERFACE:
+*   parameters:  clazz:  Clazz to open
+*   returns:     a FILEPOINTER, or error if none exists
+*=======================================================================*/
+FILEPOINTER_FAR openClassfile(INSTANCE_CLASS_FAR clazz) {
+    FILEPOINTER_FAR ClassFile;
+//    START_TEMPORARY_ROOTS
+//        UString UPackageName = clazz->clazz.packageName;
+//    UString UBaseName    = clazz->clazz.baseName;
+//    int     baseLength = UBaseName->length;
+//    int     packageLength = UPackageName == 0 ? 0 : UPackageName->length;
+//    int     length = packageLength + 1 + baseLength + 7;
+//    DECLARE_TEMPORARY_ROOT(char *, fileName, mallocBytes(length));
+//    char    *to;
+//
+//    ASSERTING_NO_ALLOCATION
+//        to = fileName;
+//
+//    if (UPackageName != NULL) {
+//        int packageLength = UPackageName->length;
+//        memcpy(to, UStringInfo(UPackageName), packageLength);
+//        to += packageLength;
+//        *to++ = '/';
+//    }
+//    memcpy(to, UStringInfo(UBaseName), baseLength);
+//    to += baseLength;
+//    strcpy(to, ".class");
+//    END_ASSERTING_NO_ALLOCATION
+//
+//        ClassFile = openClassfileInternal(&fileName);
+//    if (ClassFile == NULL) {
+//#if INCLUDEDEBUGCODE
+//        if (traceclassloadingverbose) {
+//            DECLARE_TEMPORARY_ROOT(char *, className,
+//            getClassName((CLASS)clazz));
+//            sprintf(str_buffer, KVM_MSG_CLASS_NOT_FOUND_1STRPARAM, className);
+//            fprintf(stdout, str_buffer);
+//        }
+//#endif /* INCLUDEDEBUGCODE */
+//    }
+//    END_TEMPORARY_ROOTS
+        return ClassFile;
 }
