@@ -46,7 +46,7 @@ extern /*union*/ cellOrPointer GlobalRoots[MAXIMUM_GLOBAL_ROOTS];
 #define DECLARE_TEMPORARY_ROOT_(_type_, _var_, _value_)  \
     _type_ IS_TEMPORARY_ROOT_(_var_, _value_)
 
-void makeGlobalRoot(cell** object);
+void makeGlobalRoot(far_ptr object);
 far_ptr mallocHeapObject(u2 size, GCT_ObjectType type);
 far_ptr mallocObject(u2 size, GCT_ObjectType type);
 far_ptr mallocBytes(u2 size);

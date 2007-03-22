@@ -9,6 +9,8 @@
 /* These come directly from the CLDC Specification */
 
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 #ifdef ZX
 #include <intrz80.h>
 #endif
@@ -17,46 +19,31 @@
 #include "root_code.h"
 #include "garbage.h"
 #include "seh.h"
+#include "frame.h"
 
-const char ArithmeticException[]
-= "java/lang/ArithmeticException";
-const char ArrayIndexOutOfBoundsException[]
-= "java/lang/ArrayIndexOutOfBoundsException";
-const char ArrayStoreException[]
-= "java/lang/ArrayStoreException";
-const char ClassCastException[]
-= "java/lang/ClassCastException";
-const char ClassNotFoundException[]
-= "java/lang/ClassNotFoundException";
-const char IllegalAccessException[]
-= "java/lang/IllegalAccessException";
-const char IllegalArgumentException[]
-= "java/lang/IllegalArgumentException";
-const char IllegalMonitorStateException[]
-= "java/lang/IllegalMonitorStateException";
-const char IllegalThreadStateException[]
-= "java/lang/IllegalThreadStateException";
-const char IndexOutOfBoundsException[]
-= "java/lang/IndexOutOfBoundsException";
-const char InstantiationException[]
-= "java/lang/InstantiationException";
-const char InterruptedException[]
-= "java/lang/InterruptedException";
-const char NegativeArraySizeException[]
-= "java/lang/NegativeArraySizeException";
-const char NullPointerException[]
-= "java/lang/NullPointerException";
-const char NumberFormatException[]
-= "java/lang/NumberFormatException";
-const char RuntimeException[]
-= "java/lang/RuntimeException";
-const char SecurityException[]
-= "java/lang/SecurityException";
-const char StringIndexOutOfBoundsException[]
-= "java/lang/StringIndexOutOfBoundsException";
+static PSTR_FAR UnfoundException = {0};
+static PSTR_FAR UnfoundExceptionMsg = {0};
 
-const char IOException[]
-= "java/io/IOException";
+const char ArithmeticException[] = "java/lang/ArithmeticException";
+const char ArrayIndexOutOfBoundsException[] = "java/lang/ArrayIndexOutOfBoundsException";
+const char ArrayStoreException[] = "java/lang/ArrayStoreException";
+const char ClassCastException[] = "java/lang/ClassCastException";
+const char ClassNotFoundException_[] = "java/lang/ClassNotFoundException";
+const char IllegalAccessException[] = "java/lang/IllegalAccessException";
+const char IllegalArgumentException[] = "java/lang/IllegalArgumentException";
+const char IllegalMonitorStateException[] = "java/lang/IllegalMonitorStateException";
+const char IllegalThreadStateException[] = "java/lang/IllegalThreadStateException";
+const char IndexOutOfBoundsException[] = "java/lang/IndexOutOfBoundsException";
+const char InstantiationException[] = "java/lang/InstantiationException";
+const char InterruptedException[] = "java/lang/InterruptedException";
+const char NegativeArraySizeException[] = "java/lang/NegativeArraySizeException";
+const char NullPointerException[] = "java/lang/NullPointerException";
+const char NumberFormatException[] = "java/lang/NumberFormatException";
+const char RuntimeException[] = "java/lang/RuntimeException";
+const char SecurityException[] = "java/lang/SecurityException";
+const char StringIndexOutOfBoundsException[] = "java/lang/StringIndexOutOfBoundsException";
+
+const char IOException[] = "java/io/IOException";
 
 
 const char NoClassDefFoundError_[] = "java/lang/NoClassDefFoundError";
@@ -71,32 +58,48 @@ const char VirtualMachineError[]
 /* The following classes would be needed for full JLS/JVMS compliance */
 /* However, they are not part of the CLDC Specification. */
 
-const char AbstractMethodError[]
-= "java/lang/AbstractMethodError";
-const char ClassCircularityError[]
-= "java/lang/ClassCircularityError";
-const char ClassFormatError[]
-= "java/lang/ClassFormatError";
-const char IllegalAccessError[]
-= "java/lang/IllegalAccessError";
-const char IncompatibleClassChangeError[]
-= "java/lang/IncompatibleClassChangeError";
-const char InstantiationError[]
-= "java/lang/InstantiationError";
-const char NoSuchFieldError[]
-= "java/lang/NoSuchFieldError";
-const char NoSuchMethodError[]
-= "java/lang/NoSuchMethodError";
-const char VerifyError[]
-= "java/lang/VerifyError";
+const char AbstractMethodError_[] = "java/lang/AbstractMethodError";
+const char ClassCircularityError_[] = "java/lang/ClassCircularityError";
+const char ClassFormatError_[] = "java/lang/ClassFormatError";
+const char IllegalAccessError_[] = "java/lang/IllegalAccessError";
+const char IncompatibleClassChangeError_[] = "java/lang/IncompatibleClassChangeError";
+const char InstantiationError_[] = "java/lang/InstantiationError";
+const char NoSuchFieldError_[] = "java/lang/NoSuchFieldError";
+const char NoSuchMethodError_[] = "java/lang/NoSuchMethodError";
+const char VerifyError_[] = "java/lang/VerifyError";
+
+
+PSTR_FAR AbstractMethodError;
+PSTR_FAR ClassCircularityError;
+PSTR_FAR ClassFormatError;
+PSTR_FAR IllegalAccessError;
+PSTR_FAR IncompatibleClassChangeError;
+PSTR_FAR InstantiationError;
+PSTR_FAR NoSuchFieldError;
+PSTR_FAR NoSuchMethodError;
+PSTR_FAR VerifyError;
+PSTR_FAR ClassNotFoundException;
+
 
 static THROWABLE_INSTANCE_FAR getExceptionInstance(PSTR_FAR name, PSTR_FAR msg);
 
 
 void initFrame(void)
 {
-  NoClassDefFoundError.common_ptr_ = address_24_of(NoClassDefFoundError_);
-  OutOfMemoryError.common_ptr_ = address_24_of(OutOfMemoryError_);
+    NoClassDefFoundError.common_ptr_ = address_24_of(&NoClassDefFoundError_);
+    OutOfMemoryError.common_ptr_ = address_24_of(&OutOfMemoryError_);
+
+    AbstractMethodError.common_ptr_ = address_24_of(&AbstractMethodError_);
+    ClassCircularityError.common_ptr_ = address_24_of(&ClassCircularityError_);
+    ClassFormatError.common_ptr_ = address_24_of(&ClassFormatError_);
+    IllegalAccessError.common_ptr_ = address_24_of(&IllegalAccessError_);
+    IncompatibleClassChangeError.common_ptr_ = address_24_of(&IncompatibleClassChangeError_);
+    InstantiationError.common_ptr_ = address_24_of(&InstantiationError_);
+    NoSuchFieldError.common_ptr_ = address_24_of(&NoSuchFieldError_);
+    NoSuchMethodError.common_ptr_ = address_24_of(&NoSuchMethodError_);
+    VerifyError.common_ptr_ = address_24_of(&VerifyError_);
+
+    ClassNotFoundException.common_ptr_ = address_24_of(&ClassNotFoundException_);
 }
 
 /*=========================================================================
@@ -127,10 +130,10 @@ void initFrame(void)
 void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR msg) {
     STRING_INSTANCE_FAR stringInstance;
     stringInstance.common_ptr_ = 0;
-#if INCLUDEDEBUGCODE
-    /* Turn off the allocation guard */
-    NoAllocation = 0;
-#endif /* INCLUDEDEBUGCODE */
+//#if INCLUDEDEBUGCODE
+//    /* Turn off the allocation guard */
+//    NoAllocation = 0;
+//#endif /* INCLUDEDEBUGCODE */
 
     stringInstance = instantiateString(msg, hstrlen(msg.common_ptr_));
     if (stringInstance.common_ptr_ != 0) {
@@ -146,90 +149,103 @@ void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR msg) {
     raiseException(exceptionClassName);
 }
 
-
+static const u1 * copyStrToBuffer(u1* buffer, far_ptr str)
+{
+    const u2 nameLength = hstrlen(str);
+    readHmem(buffer, str, nameLength);
+    buffer[nameLength] = '\0';
+    return buffer;
+}
 static THROWABLE_INSTANCE_FAR getExceptionInstance(PSTR_FAR name, PSTR_FAR msg) {
+    INSTANCE_CLASS_FAR clazz;
+    THROWABLE_INSTANCE_FAR exception;
 
-                                                   INSTANCE_CLASS clazz;
-                                                   THROWABLE_INSTANCE exception;
+    /* 
+    * For CLDC 1.0/1.1, we will hardcode the names of some of the 
+    * error classes that we don't support in CLDC.  This will prevent
+    * the KVM from trying to load error classes that don't actually
+    * exist.  This code should be removed if we ever decide to add the
+    * missing error classes to the KVM/CLDC.
+    */
+    if (name.common_ptr_ == AbstractMethodError.common_ptr_          ||
+       name.common_ptr_ == ClassCircularityError.common_ptr_        ||
+       name.common_ptr_ == ClassFormatError.common_ptr_             ||
+       /* name == ExceptionInInitializerError  || */
+       name.common_ptr_ == IllegalAccessError.common_ptr_           ||
+       name.common_ptr_ == IncompatibleClassChangeError.common_ptr_ ||
+       name.common_ptr_ == InstantiationError.common_ptr_           ||
+       name.common_ptr_ == NoSuchMethodError.common_ptr_            ||
+       name.common_ptr_ == NoSuchFieldError.common_ptr_             ||
+       name.common_ptr_ == VerifyError.common_ptr_) {
 
-                                                   /* 
-                                                   * For CLDC 1.0/1.1, we will hardcode the names of some of the 
-                                                   * error classes that we don't support in CLDC.  This will prevent
-                                                   * the KVM from trying to load error classes that don't actually
-                                                   * exist.  This code should be removed if we ever decide to add the
-                                                   * missing error classes to the KVM/CLDC.
-                                                   */
-                                                   if (name == AbstractMethodError          ||
-                                                       name == ClassCircularityError        ||
-                                                       name == ClassFormatError             ||
-                                                       /* name == ExceptionInInitializerError  || */
-                                                       name == IllegalAccessError           ||
-                                                       name == IncompatibleClassChangeError ||
-                                                       name == InstantiationError           ||
-                                                       name == NoSuchMethodError            ||
-                                                       name == NoSuchFieldError             ||
-                                                       name == VerifyError) {
+           /* The VM is about to die; don't bother allocating memory from the heap */
+           char buffer[STRINGBUFFERSIZE];
+           char buffer2[STRINGBUFFERSIZE];
 
-                                                           /* The VM is about to die; don't bother allocating memory from the heap */
-                                                           char buffer[STRINGBUFFERSIZE];
+           sprintf(buffer, "%s", copyStrToBuffer(&buffer2[0], name.common_ptr_));
+           if (msg.common_ptr_ != 0) {
+               sprintf(buffer + strlen(buffer),": %s.", copyStrToBuffer(&buffer2[0], msg.common_ptr_));
+           } else {
+               strcpy(buffer + strlen(buffer),".");
+           }
+           fatalError(buffer);
+    }
 
-                                                           sprintf(buffer, "%s", name);
-                                                           if (msg != NULL) {
-                                                               sprintf(buffer + strlen(buffer),": %s.", msg);
-                                                           } else {
-                                                               strcpy(buffer + strlen(buffer),".");
-                                                           }
-                                                           fatalError(buffer);
-                                                   }
+    /*
+    * This piece of code is executed when the VM has already tried to
+    * throw an error or exception earlier, but couldn't find the error class.
+    * The code basically converts raiseException semantics into fatalError 
+    * semantics.
+    */
+    if (UnfoundException.common_ptr_ != 0) {
+       /* The VM is about to die; don't bother allocating memory from the heap */
+       char buffer[STRINGBUFFERSIZE];
+       char buffer2[STRINGBUFFERSIZE];
+       char buffer3[STRINGBUFFERSIZE];
 
-                                                   /*
-                                                   * This piece of code is executed when the VM has already tried to
-                                                   * throw an error or exception earlier, but couldn't find the error class.
-                                                   * The code basically converts raiseException semantics into fatalError 
-                                                   * semantics.
-                                                   */
-                                                   if (UnfoundException != NULL) {
-                                                       /* The VM is about to die; don't bother allocating memory from the heap */
-                                                       char buffer[STRINGBUFFERSIZE];
+       if (name.common_ptr_ == NoClassDefFoundError.common_ptr_ 
+           || name.common_ptr_ == ClassNotFoundException.common_ptr_) {
+           sprintf( buffer,
+                    "%s", 
+                    copyStrToBuffer(&buffer2[0], UnfoundException.common_ptr_));
+       } 
+       else {
 
-                                                       if (name == NoClassDefFoundError || name == ClassNotFoundException) {
-                                                           sprintf(buffer,"%s", UnfoundException);
-                                                       } 
-                                                       else {
-                                                           sprintf(buffer,"%s while loading exception class %s",
-                                                               name, UnfoundException);
-                                                           UnfoundExceptionMsg = msg;
-                                                       }
+           sprintf( buffer,
+                    "%s while loading exception class %s", 
+                    copyStrToBuffer(&buffer2[0], name.common_ptr_), 
+                    copyStrToBuffer(&buffer3[0], UnfoundException.common_ptr_));
+           UnfoundExceptionMsg = msg;
+       }
 
-                                                       if (UnfoundExceptionMsg != NULL) {
-                                                           sprintf(buffer + strlen(buffer),": %s.",
-                                                               UnfoundExceptionMsg);
-                                                       } else {
-                                                           strcpy(buffer + strlen(buffer),".");
-                                                       }
-                                                       fatalError(buffer);
-                                                   }
+       if (UnfoundExceptionMsg.common_ptr_ != 0) {
+           sprintf(buffer + strlen(buffer),": %s.", copyStrToBuffer(&buffer2[0], UnfoundExceptionMsg.common_ptr_));
+       } else {
+           strcpy(buffer + strlen(buffer),".");
+       }
+       fatalError(buffer);
+    }
 
-                                                   UnfoundException = name;
-                                                   UnfoundExceptionMsg = msg;
+    UnfoundException = name;
+    UnfoundExceptionMsg = msg;
 
-                                                   /*
-                                                   * Load the actual exception/error class.
-                                                   * Any exceptions thrown during this call will be handled above.
-                                                   */
-                                                   clazz = (INSTANCE_CLASS)getClass(name);
+    /*
+    * Load the actual exception/error class.
+    * Any exceptions thrown during this call will be handled above.
+    */
+    clazz.common_ptr_ = getClass(name).common_ptr_;
 
-                                                   START_TEMPORARY_ROOTS
-                                                       IS_TEMPORARY_ROOT(exception, (THROWABLE_INSTANCE)instantiate(clazz));
-                                                   /* The exception object instantiation is successful otherwise we
-                                                   * will have already thrown an OutOfMemoryError */
-#if PRINT_BACKTRACE
-                                                   fillInStackTrace(&exception);
-#endif
-                                                   END_TEMPORARY_ROOTS
+    START_TEMPORARY_ROOTS
+       IS_TEMPORARY_ROOT(exception, instantiate(clazz));
+    /* The exception object instantiation is successful otherwise we
+    * will have already thrown an OutOfMemoryError */
+    //#if PRINT_BACKTRACE
+    //fillInStackTrace(&exception);
+    //#endif
+    END_TEMPORARY_ROOTS
 
-                                                       UnfoundException = NULL;
-                                                   UnfoundExceptionMsg = NULL;
+    UnfoundException.common_ptr_ = 0;
+    UnfoundExceptionMsg.common_ptr_ = 0;
 
-                                                   return exception;
+    return exception;
 }

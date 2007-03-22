@@ -40,6 +40,7 @@ char str_buffer[STRINGBUFFERSIZE];
 //
 void fatalVMError(const char* p) {
   VM_EXIT(128);
+  (void)p;
 }
 //
 void InitializeGlobals(void);
@@ -71,5 +72,6 @@ void main(void)
       } VM_FINISH(value) {
       } VM_END_FINISH
     } CATCH(e) {
+        (void)e;
     } END_CATCH
 }
