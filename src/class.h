@@ -69,6 +69,7 @@ struct classStruct {
 #define CLASS_OF_CLASS offsetof(struct classStruct, ofClass)
 #define CLASS_KEY offsetof(struct classStruct, key)
 #define CLASS_ACCESSFLAGS offsetof(struct classStruct, accessFlags)
+#define CLASS_PACKAGENAME offsetof(struct classStruct, packageName)
 
 typedef void (*NativeFuncPtr) (INSTANCE_HANDLE_FAR);
 
@@ -132,10 +133,36 @@ struct instanceStruct {
 /* ARRAY */
 struct arrayStruct {
     COMMON_OBJECT_INFO(ARRAY_CLASS_FAR)
-
-    cell  length;               /* Number of elements */
-    cellOrPointer data[1];  
+    u4 length;               /* Number of elements */
+    u4 data[1];  
 };
+
+
+/* These are never created directly. */
+/* It's what a java.lang.String looks like */
+/* STRING_INSTANCE */
+struct stringInstanceStruct {
+    COMMON_OBJECT_INFO(INSTANCE_CLASS_FAR)
+    SHORTARRAY_FAR array;
+    u2 offset;
+    u2 length;
+};
+
+#define STRINST_OFFSET offsetof(struct stringInstanceStruct, offset)
+#define STRINST_LENGTH offsetof(struct stringInstanceStruct, length)
+#define STRINST_ARRAY offsetof(struct stringInstanceStruct, array)
+
+
+/* SHORTARRAY */
+struct shortArrayStruct {
+    COMMON_OBJECT_INFO(ARRAY_CLASS_FAR)
+    u2  length;               /* The size of the array (slot count) */
+    u2  sdata[1];             /* First (zeroeth) data slot of the array */
+};
+
+#define SIZEOF_SHORT_ARRAY(n) (sizeof(struct shortArrayStruct) + (n - 1) * sizeof(u2))
+#define SHORTAR_LENGTH offsetof(struct shortArrayStruct, length)
+#define SHORTAR_SDATA offsetof(struct shortArrayStruct, sdata)
 
 /* Abstract types used by the byte code verifier. */
 enum {
@@ -198,9 +225,10 @@ CLASS_FAR getRawClass(PSTR_FAR name);
 PSTR_FAR  getClassName_inBuffer(CLASS_FAR clazz, PSTR_FAR resultBuffer);
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz);
 STRING_INSTANCE_FAR instantiateString(PSTR_FAR string, u2 length);
-char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, int lth);
+char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth);
 INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz);
-CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, int offset, int length);
+CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length);
+SHORTARRAY_FAR createCharArray(PSTR_FAR utf8stringArg, u2 utf8length, u2* unicodelengthP, BOOL isPermanent);
 
 #define RunCustomCodeMethod_MAX_STACK_SIZE 4
 

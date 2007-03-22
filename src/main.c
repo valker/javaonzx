@@ -15,7 +15,7 @@
 #include "garbage.h"
 #include "root_code.h"
 #include "class.h"
-
+#include "main.h"
 
 u1 class_image[]={
 #include "test_class.h"
@@ -42,6 +42,23 @@ void fatalVMError(const char* p) {
   VM_EXIT(128);
   (void)p;
 }
+
+/*=========================================================================
+* FUNCTION:      alertUser()
+* TYPE:          error handling operation
+* OVERVIEW:      Show an alert dialog to the user and wait for
+*                confirmation before continuing execution.
+* INTERFACE:
+*   parameters:  message string
+*   returns:     <nothing>
+*=======================================================================*/
+
+void AlertUser(const char* message)
+{
+    //fprintf(stderr, "ALERT: %s\n", message);
+}
+
+
 //
 void InitializeGlobals(void);
 void InitializeMemoryManagement(void);

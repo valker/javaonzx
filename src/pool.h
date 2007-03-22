@@ -8,6 +8,9 @@
 #ifndef POOL_H_INCLUDED
 #define POOL_H_INCLUDED
 
+#include "jvm_types.h"
+#include "hashtable.h"
+
 #define CONSTANT_Utf8               1
 #define CONSTANT_Integer            3
 #define CONSTANT_Float              4

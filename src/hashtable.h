@@ -27,6 +27,7 @@ typedef struct UTF_Hash_Entry {
 };
 
 #define UTF_LENGTH offsetof(struct UTF_Hash_Entry, length)
+#define UTF_KEY offsetof(struct UTF_Hash_Entry, key)
 
 /* The declaration of a hashtable.  We make the buckets fairly
 * generic.
@@ -37,6 +38,8 @@ typedef struct HashTable {
     PUTF_HASH_ENTRY_FAR bucket[1];
 } *HASHTABLE;
 
+#define HASHTABLE_BUCKETCOUNT offsetof(struct HashTable, bucketCount)
+#define HASHTABLE_COUNT offsetof(struct HashTable, count)
 #define HASHTABLE_BUCKET offsetof(struct HashTable, bucket)
 
 typedef far_ptr_of(HASHTABLE) HASHTABLE_FAR;
@@ -56,9 +59,10 @@ PSTR_FAR UStringInfo(PUTF_HASH_ENTRY_FAR hash);
 extern HASHTABLE_FAR ClassTable;
 non_banked u2 stringHash(PSTR_FAR s, i2 length);
 INTERNED_STRING_INSTANCE_FAR internString(PSTR_FAR string, u2 length);
-NameKey change_Name_to_Key(CONST_CHAR_HANDLE_FAR, i2 offset, i2 length);
+NameKey change_Name_to_Key(CONST_CHAR_HANDLE_FAR, u2 offset, u2 length);
 /* Convert utf8 to unicode */
 u2 utf2unicode(PSTR_FAR* utf);
 
+u2 utfStringLength(PSTR_FAR utfstring, u2 length);
 
 #endif

@@ -10,6 +10,8 @@
 HASHTABLE_FAR ClassTable;           /* package/base to CLASS */
 HASHTABLE_FAR UTFStringTable;       /* char* to unique instance */
 
+HASHTABLE_FAR InternStringTable;    /* char* to String */
+
 
 PSTR_FAR UStringInfo(PUTF_HASH_ENTRY_FAR hash) {
     PSTR_FAR r;
@@ -262,12 +264,125 @@ UString_FAR getUStringXPtr(PSTR_FAR start, u2 offset, u2 stringLength)
     /* Increment the count, in case we need this information */
     //table->count++;
     {
-        u2 count;
-        readHmem(&count, table.common_ptr_ + offsetof(struct HashTable, count), sizeof(count));
-        ++count;
-        writeHmem(&count, table.common_ptr_ + offsetof(struct HashTable, count), sizeof(count));
+        setWordAt(table.common_ptr_ + HASHTABLE_COUNT, 1 + getWordAt(table.common_ptr_ + HASHTABLE_COUNT));
+        //u2 count;
+        //readHmem(&count, table.common_ptr_ + offsetof(struct HashTable, count), sizeof(count));
+        //++count;
+        //writeHmem(&count, table.common_ptr_ + offsetof(struct HashTable, count), sizeof(count));
     }
 
     /* Return the string */
     return bucket;
+}
+
+
+/*=========================================================================
+* FUNCTION:      utf2unicode
+* OVERVIEW:      Converts UTF8 string to unicode char.
+*
+*   parameters:  utfstring_ptr: pointer to a UTF8 string. Set to point 
+*                to the next UTF8 char upon return.
+*   returns      unicode char
+*=======================================================================*/
+u2 utf2unicode(PSTR_FAR* utfstring_ptr) {
+    PSTR_FAR ptr = *utfstring_ptr;
+    u1 ch, ch2, ch3;
+    u1 length = 1;     /* default length */
+    u2 result = 0x80;    /* default bad result; */
+
+    switch ((ch = getCharAt(ptr.common_ptr_)) >> 4) {
+        default:
+            result = ch;
+            break;
+
+        case 0x8: case 0x9: case 0xA: case 0xB: case 0xF:
+            /* Shouldn't happen. */
+            break;
+
+        case 0xC: case 0xD: 
+            /* 110xxxxx  10xxxxxx */
+            if (((ch2 = getCharAt(ptr.common_ptr_ + 1)) & 0xC0) == 0x80) {
+                u1 high_five = ch & 0x1F;
+                u1 low_six = ch2 & 0x3F;
+                result = (high_five << 6) + low_six;
+                length = 2;
+            } 
+            break;
+
+        case 0xE:
+            /* 1110xxxx 10xxxxxx 10xxxxxx */
+            if (((ch2 = getCharAt(ptr.common_ptr_ + 1)) & 0xC0) == 0x80) {
+                if (((ch3 = getCharAt(ptr.common_ptr_ + 2)) & 0xC0) == 0x80) {
+                    u1 high_four = ch & 0x0f;
+                    u1 mid_six = ch2 & 0x3f;
+                    u1 low_six = ch3 & 0x3f;
+                    result = (((high_four << 6) + mid_six) << 6) + low_six;
+                    length = 3;
+                } else {
+                    length = 2;
+                }
+            }
+            break;
+    } /* end of switch */
+
+    //*utfstring_ptr = (char *)(ptr + length);
+    ptr.common_ptr_ += length;
+    *utfstring_ptr = ptr;
+    return result;
+}
+
+
+NameKey change_Name_to_Key(CONST_CHAR_HANDLE_FAR nameH, u2 offset, u2 length) { 
+    UString_FAR UName = getUStringX(nameH, offset, length);
+    return getWordAt(UName.common_ptr_ + UTF_KEY);
+}
+
+
+/*=========================================================================
+* FUNCTION:      internString
+* OVERVIEW:      Returns a unique Java String that corresponds to a
+*                particular char* C string
+* INTERFACE:
+*   parameters:  string:  A C string
+*   returns:     A unique Java String, such that if strcmp(x,y) == 0, then
+*                internString(x) == internString(y).
+*=======================================================================*/
+INTERNED_STRING_INSTANCE_FAR internString(PSTR_FAR utf8string, u2 length) { 
+    HASHTABLE_FAR table = InternStringTable;
+    u2 hash = stringHash(utf8string, length);
+    u2 index = hash % getWordAt(table.common_ptr_ + HASHTABLE_BUCKETCOUNT);
+    unsigned int utfLength = utfStringLength(utf8string, length);
+
+    INTERNED_STRING_INSTANCE_FAR string, *stringPtr;
+
+    stringPtr = (INTERNED_STRING_INSTANCE *)&table->bucket[index];
+
+    for (string = *stringPtr; string != NULL; string = string->next) { 
+        if (string->length == utfLength) { 
+            SHORTARRAY chars = string->array;
+            int offset = string->offset;
+            const char *p = utf8string;
+            unsigned int i;
+            for (i = 0; i < utfLength; i++) { 
+                short unichar = utf2unicode(&p);
+                if (unichar != chars->sdata[offset + i]) { 
+                    /* We want to do "continue  <outerLoop>", but this is C */;
+                    goto continueOuterLoop;
+                }
+            }
+            if (EXCESSIVE_GARBAGE_COLLECTION && !ASYNCHRONOUS_NATIVE_FUNCTIONS){
+                /* We might garbage collect, so we do  */
+                garbageCollect(0);
+            }
+            return string;
+        }
+continueOuterLoop:
+        ;
+    }
+
+
+    string = instantiateInternedString(utf8string, length);
+    string->next = *stringPtr;
+    *stringPtr = string;
+    return string;
 }

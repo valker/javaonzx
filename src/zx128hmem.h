@@ -51,7 +51,8 @@ typedef union {
 
 typedef struct {
   BOOL            mark_:1;
-  GCT_ObjectType  type_:7;
+  BOOL            permanent_:1;
+  GCT_ObjectType  type_:6;
   u2              size_;
 } HighMemoryDescriptor;
 

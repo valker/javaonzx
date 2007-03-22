@@ -54,10 +54,12 @@ extern PSTR_FAR ClassFormatError;
 extern PSTR_FAR IncompatibleClassChangeError;
 extern PSTR_FAR VerifyError;
 extern PSTR_FAR ClassNotFoundException;
+extern PSTR_FAR IllegalAccessError;
 
 //void raiseExceptionWithMessage(const char* exceptionClassName, const char* exceptionMessage);
 void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR exceptionMessage);
 void fatalError(const char* errorMessage);
 void raiseException(PSTR_FAR exceptionClassName);
+const u1 * copyStrToBuffer(u1* buffer, far_ptr str);
 
 #endif

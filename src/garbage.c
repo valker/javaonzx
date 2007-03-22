@@ -66,7 +66,7 @@ far_ptr mallocHeapObject(u2 size, GCT_ObjectType type) {
     p.common_ptr_ = hAlloc(size);
     p2 = p;
     --(p.fields_.near_ptr_);
-    setBlockType(p, type);
+    setBlockType(p, type, FALSE);
     return p2.common_ptr_;
   }
 }
@@ -88,6 +88,23 @@ far_ptr callocObject(u2 size, GCT_ObjectType type) {
   hmemset(result, 0, size);
   return result;
 }
+
+far_ptr callocPermanentObject(u2 size) {
+    if (size == 0) 
+        size = 1;
+    if (0/*EXCESSIVE_GARBAGE_COLLECTION*/) {
+        garbageCollect(0);
+    }
+    {
+        FPD p,p2;
+        p.common_ptr_ = hAlloc(size);
+        p2 = p;
+        --(p.fields_.near_ptr_);
+        setBlockType(p, GCT_NOPOINTERS, TRUE);
+        return p2.common_ptr_;
+    }
+}
+
 
 
 ///*=========================================================================
