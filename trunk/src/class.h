@@ -70,6 +70,7 @@ struct classStruct {
 #define CLASS_KEY offsetof(struct classStruct, key)
 #define CLASS_ACCESSFLAGS offsetof(struct classStruct, accessFlags)
 #define CLASS_PACKAGENAME offsetof(struct classStruct, packageName)
+#define CLASS_BASENAME offsetof(struct classStruct, baseName)
 
 typedef void (*NativeFuncPtr) (INSTANCE_HANDLE_FAR);
 
@@ -160,6 +161,23 @@ struct shortArrayStruct {
     u2  sdata[1];             /* First (zeroeth) data slot of the array */
 };
 
+#define SHORTAR_SDATA offsetof(struct shortArrayStruct, sdata)
+
+/* INTERNED_STRING_INSTANCE */
+struct internedStringInstanceStruct { 
+    COMMON_OBJECT_INFO(INSTANCE_CLASS_FAR)
+    SHORTARRAY_FAR array;
+    u2 offset;
+    u2 length;
+    far_ptr_of(struct internedStringInstanceStruct *) next;
+};
+
+#define INTSTRINST_ARRAY offsetof(struct internedStringInstanceStruct, array)
+#define INTSTRINST_OFFSET offsetof(struct internedStringInstanceStruct, offset)
+#define INTSTRINST_LENGTH offsetof(struct internedStringInstanceStruct, length)
+#define INTSTRINST_NEXT offsetof(struct internedStringInstanceStruct, next)
+
+
 #define SIZEOF_SHORT_ARRAY(n) (sizeof(struct shortArrayStruct) + (n - 1) * sizeof(u2))
 #define SHORTAR_LENGTH offsetof(struct shortArrayStruct, length)
 #define SHORTAR_SDATA offsetof(struct shortArrayStruct, sdata)
@@ -225,6 +243,7 @@ CLASS_FAR getRawClass(PSTR_FAR name);
 PSTR_FAR  getClassName_inBuffer(CLASS_FAR clazz, PSTR_FAR resultBuffer);
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz);
 STRING_INSTANCE_FAR instantiateString(PSTR_FAR string, u2 length);
+INTERNED_STRING_INSTANCE_FAR instantiateInternedString(PSTR_FAR stringArg, u2 utflength);
 char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth);
 INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz);
 CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length);

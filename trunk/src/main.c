@@ -16,6 +16,11 @@
 #include "root_code.h"
 #include "class.h"
 #include "main.h"
+#include "zxfile.h"
+#include "native.h"
+
+const ClassNativeImplementationType nativeImplementations[] = {0};
+
 
 u1 class_image[]={
 #include "test_class.h"
@@ -65,13 +70,55 @@ void InitializeMemoryManagement(void);
 //
 void initEmulator(void);
 
+typedef void(non_banked *VoidFunc)(void);
+
+void softReset(void) {
+    //_opc(0x0e); // LD C,n
+    //_opc(0x00);
+
+    //_opc(0x3e); // LD A,n
+    //_opc(0x00);
+
+    //_opc(0xcd); // CALL nn
+    //_opc(0x13);
+    //_opc(0x3d);
+
+    *(u2*)0x5CC8 = 80;
+    *(u2*)0x5CAF = 0xFF;
+}
+
+void initDisk(void) {
+    _opc(0x0e); // LD C,n
+    _opc(0x18);
+
+    _opc(0xcd); // CALL nn
+    _opc(0x13);
+    _opc(0x3d);
+}
+
+void initTrDos(void) {
+    //VoidFunc v = (VoidFunc) 0x3D21;
+    *(u2*)0x5C4F = 0x5D25;
+    (*(VoidFunc)0x3D21)();
+
+    softReset();
+    initDisk();
+}
+
 void main(void)
 {
+    // 0 0
+    // 1 1
+    // 2 3
+    // 3 4
+    // 4 6
+    // 6 7
+    static const u1 pages[] = {3,4};
+    initTrDos();
   // logical pages
 #ifdef ZX
 #pragma memory=constseg(ROOT_CONST)
 #endif
-  static const u1 pages[] = {2,3,4};
 #ifdef ZX
 #pragma memory=default
 #endif
@@ -83,12 +130,30 @@ void main(void)
     hmemInit(&pages[0], sizeof(pages));
     TRY {
       VM_START {
-        InitializeGlobals();
-        InitializeMemoryManagement();
-        InitializeJavaSystemClasses();
+//        InitializeGlobals();
+//        InitializeMemoryManagement();
+//        InitializeJavaSystemClasses();
       } VM_FINISH(value) {
       } VM_END_FINISH
     } CATCH(e) {
         (void)e;
     } END_CATCH
 }
+
+#ifdef ZX
+i2 getc(FILE * File)
+{
+    return 0;
+}
+i2 fseek(FILE * File, i2 Offset, i1 Origin)
+{
+    return 0;
+}
+i2 fread(void * DstBuf, u1 ElementSize, u2 Count, FILE * File) {
+    return 0;
+}
+u2 ftell(FILE * _File) {
+    return 0;
+}
+
+#endif

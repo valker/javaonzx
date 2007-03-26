@@ -739,6 +739,28 @@ STRING_INSTANCE_FAR instantiateString(PSTR_FAR stringArg, u2 utflength) {
     return result;
 }
 
+INTERNED_STRING_INSTANCE_FAR instantiateInternedString(PSTR_FAR stringArg, u2 utflength)
+{
+    u2 unicodelength;
+    INTERNED_STRING_INSTANCE_FAR result;
+    START_TEMPORARY_ROOTS
+        DECLARE_TEMPORARY_ROOT(PSTR_FAR, string, stringArg);
+        SHORTARRAY_FAR chars = createCharArray(string, utflength, &unicodelength, TRUE);
+        result.common_ptr_ = callocPermanentObject(SIZEOF_INTERNED_STRING_INSTANCE);
+        /* We can't do any garbage collection, since result isn't protected */
+        //result->ofClass = JavaLangString;
+        setDWordAt(result.common_ptr_, JavaLangString.common_ptr_);
+        //result->offset = 0;
+        setWordAt(result.common_ptr_ + INTSTRINST_OFFSET, 0);
+        //result->length = unicodelength;
+        setWordAt(result.common_ptr_ + INTSTRINST_LENGTH, unicodelength);
+        //result->array = chars;
+        setDWordAt(result.common_ptr_ + INTSTRINST_ARRAY, chars.common_ptr_);
+    END_TEMPORARY_ROOTS
+    return result;
+}
+
+
 
 /*=========================================================================
 * FUNCTION:      createCharArray()

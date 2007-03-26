@@ -1396,7 +1396,7 @@ void loadOneMethod(FILEPOINTER_HANDLE_FAR ClassFileH, INSTANCE_CLASS_FAR Current
         setDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_INFO, 0);
 
         //thisMethod->u.native.code = getNativeFunction(CurrentClass, methodName, signature);
-        setDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_CODE, getNativeFunction(CurrentClass, methodName, signature).common_ptr_);
+        setDWordAt(thisMethod.common_ptr_ + METHOD_U + NATIVE_CODE, (u4)getNativeFunction(CurrentClass, methodName, signature));
 
         /* Check for finalizers, skipping java.lang.Object */
         if (getDWordAt(CurrentClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) != 0) {
