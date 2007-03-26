@@ -11,11 +11,12 @@
 #define non_banked
 #endif
 
-typedef unsigned char   u1;
-typedef signed char     i1;
-typedef unsigned short  u2;
-typedef signed   short  i2;
-typedef unsigned long   u4;
+typedef unsigned char       u1;
+typedef signed char         i1;
+typedef unsigned short int  u2;
+typedef signed short int    i2;
+typedef unsigned long int   u4;
+typedef signed long int     i4;
 
 typedef enum {
     TRUE = 1,

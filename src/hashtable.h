@@ -26,6 +26,7 @@ typedef struct UTF_Hash_Entry {
     u1 string[1];          /* The characters of the string */
 };
 
+#define UTF_NEXT offsetof(struct UTF_Hash_Entry, next)
 #define UTF_LENGTH offsetof(struct UTF_Hash_Entry, length)
 #define UTF_KEY offsetof(struct UTF_Hash_Entry, key)
 

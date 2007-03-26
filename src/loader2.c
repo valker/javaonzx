@@ -21,9 +21,7 @@
 #include "fields.h"
 #include "native.h"
 #include "loader_private.h"
-#ifdef ZX
 #include "zxfile.h"
-#endif
 
 struct filePointerStruct {
     /* If set to true, indicates a JAR file */
@@ -39,18 +37,20 @@ struct stdioPointerStruct {
 };
 
 #define STDIOPOINTER_FILE offsetof(struct stdioPointerStruct, file)
+#define STDIOPOINTER_SIZE offsetof(struct stdioPointerStruct, size)
 
 struct jarPointerStruct {
     BOOL isJarFile;      /* always FALSE */
     u4 dataLen;          /* length of data stream */
-    u4 dataIndex;        /* current position for reading */
-    u1 data[1];
+    i4 dataIndex;        /* current position for reading */
+    BYTES_FAR data;
 };
 
 #define JARPOINTER_DATALEN offsetof(struct jarPointerStruct, dataLen)
 #define JARPOINTER_DATAINDEX offsetof(struct jarPointerStruct, dataIndex)
 #define JARPOINTER_DATA offsetof(struct jarPointerStruct, data)
 
+static i2 loadBytesInternal(FILEPOINTER_HANDLE_FAR ClassFileH, far_ptr buffer, i4 pos, u2 length, BOOL checkEOF);
 
 
 u2 readClassStatus(INSTANCE_CLASS_FAR clazz) {
@@ -972,16 +972,15 @@ static FILEPOINTER_FAR openClassfileInternal(BYTES_HANDLE_FAR filenameH) {
 * NOTE:          For safety it might be a good idea to check
 *                explicitly for EOF in these operations.
 *=======================================================================*/
-i1 loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR ClassFileH) {
+i2 loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR ClassFileH) {
     FILEPOINTER_FAR ClassFile;
-    ClassFileH.common_ptr_ = getDWordAt(ClassFileH.common_ptr_);
+    ClassFile.common_ptr_ = getDWordAt(ClassFileH.common_ptr_);
     if (!getCharAt(ClassFile.common_ptr_ + FILEPOINTER_ISJARFILE)) {
         far_ptr_of(struct stdioPointerStruct*) fs;
         fs.common_ptr_ = ClassFile.common_ptr_;
         {
             FILE *file = (FILE*) getDWordAt(fs.common_ptr_ + STDIOPOINTER_FILE);
             return getc(file);
-
         }
     } else {
         far_ptr_of(struct jarPointerStruct*) ds;
@@ -989,8 +988,8 @@ i1 loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR ClassFileH) {
         //struct jarPointerStruct *ds = (struct jarPointerStruct *)ClassFile;
         if (getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX)
             < getDWordAt(ds.common_ptr_ + JARPOINTER_DATALEN)) {
-            u4 dataIndex = getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX);
-            u1 r = getCharAt(ds.common_ptr_ + JARPOINTER_DATA + dataIndex);
+            i4 dataIndex = getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX);
+            u1 r = getCharAt(getDWordAt(ds.common_ptr_ + JARPOINTER_DATA) + dataIndex);
             dataIndex++;
             setDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX, dataIndex);
             return r;
@@ -1048,4 +1047,189 @@ FILEPOINTER_FAR openClassfile(INSTANCE_CLASS_FAR clazz) {
 //    }
 //    END_TEMPORARY_ROOTS
         return ClassFile;
+}
+
+
+void loadBytes(FILEPOINTER_HANDLE_FAR ClassFileH, far_ptr buffer, u2 length)
+{
+    /* check for eof */
+
+    (void)loadBytesInternal(ClassFileH, buffer, -1, length, TRUE);
+}
+
+
+static i2 loadBytesInternal(FILEPOINTER_HANDLE_FAR ClassFileH, far_ptr buffer, i4 pos, u2 length, BOOL checkEOF) {
+    i2 n;
+    FILEPOINTER_FAR ClassFile;
+    ClassFile.common_ptr_ = getDWordAt(ClassFileH.common_ptr_);
+    if (!getCharAt(ClassFile.common_ptr_ + FILEPOINTER_ISJARFILE)) {
+        far_ptr_of(struct stdioPointerStruct*) fp;
+        FILE* file;
+        fp.common_ptr_ = ClassFile.common_ptr_;
+        //FILE *file = ((struct stdioPointerStruct*)ClassFile)->file;
+        readHmem(&file, fp.common_ptr_ + STDIOPOINTER_FILE, sizeof(FILE*));
+        /*
+        * If 'pos' is -1 then just read sequentially.  Used internally by
+        * loadBytes() which is called from classloader.
+        */
+
+        if (pos != -1)
+            fseek(file, pos, SEEK_SET);
+        n = hfread(buffer, 1, length, file);
+        if (n != length) {
+            if (checkEOF) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            } else {
+                if (n > 0)
+                    return (n);
+                else
+                    return (-1);        /* eof */
+            }
+        } else {
+            return (n);
+        }
+    } else {
+        far_ptr_of(struct jarPointerStruct *) ds;
+        u2 avail;
+        ds.common_ptr_ = ClassFile.common_ptr_;
+        if (pos == -1) {
+            //pos = ds->dataIndex;
+            pos = getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX);
+        }
+        //avail = ds->dataLen - pos;
+        avail = getWordAt(ds.common_ptr_ + JARPOINTER_DATALEN) - pos;
+        if (avail < length && checkEOF) /* inconceivable? */{
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+            raiseExceptionWithMessage(ClassFormatError, msg);
+        } else {
+            if (avail) {
+                u2 readLength = (avail > length) ? length : avail;
+                hmemcpy(buffer, getDWordAt(ds.common_ptr_ + JARPOINTER_DATA) + pos, readLength);
+                //ds->dataIndex = pos + readLength;
+                setDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX, pos + readLength);
+                return (readLength);
+            } else {
+                return (-1);
+            }
+        }
+    }
+    return (0);
+}
+
+
+u4 loadCell(FILEPOINTER_HANDLE_FAR ClassFileH) {
+    u1 c1 = loadByte(ClassFileH);
+    u1 c2 = loadByte(ClassFileH);
+    u1 c3 = loadByte(ClassFileH);
+    u1 c4 = loadByte(ClassFileH);
+    u4 c;
+    c  = c1 << 24 | c2 << 16 | c3 << 8 | c4;
+    return c;
+}
+
+u1 loadByte(FILEPOINTER_HANDLE_FAR ClassFileH) {
+    i2 c = loadByteNoEOFCheck(ClassFileH);
+    if (c == -1) {
+        PSTR_FAR msg;
+        msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+        raiseExceptionWithMessage(ClassFormatError, msg);
+    }
+    return (u1)c;
+}
+
+u2 loadShort(FILEPOINTER_HANDLE_FAR ClassFileH)
+{
+    u1 c1 = loadByte(ClassFileH);
+    u1 c2 = loadByte(ClassFileH);
+    u2 c  = c1 << 8 | c2;
+    return c;
+}
+
+void skipBytes(FILEPOINTER_HANDLE_FAR ClassFileH, u4 length)
+{
+    int pos;
+    FILEPOINTER_FAR ClassFile;
+    ClassFile.common_ptr_ = getDWordAt(ClassFileH.common_ptr_);
+
+    if (!getCharAt(ClassFile.common_ptr_ + FILEPOINTER_ISJARFILE)) {
+        far_ptr_of(struct stdioPointerStruct *) ds;
+        FILE *file;
+        //struct stdioPointerStruct *ds = (struct stdioPointerStruct *)ClassFile;
+        ds.common_ptr_ = ClassFile.common_ptr_;
+        //FILE *file = ds->file;
+        readHmem(&file, ds.common_ptr_ + STDIOPOINTER_FILE, sizeof(FILE*));
+        pos = ftell(file);
+
+        if (getDWordAt(ds.common_ptr_ + STDIOPOINTER_SIZE) == 0 || pos == -1) {
+            /* In some kind of error state, just do it byte by byte
+            * and the EOF error will get returned if appropriate.
+            */
+            while (length-- > 0) {
+                int c = getc(file);
+                if (c == EOF) {
+                    PSTR_FAR msg;
+                    msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+                    raiseExceptionWithMessage(ClassFormatError, msg);
+                }
+            }
+        } else {
+            if (pos + length > getDWordAt(ds.common_ptr_ + STDIOPOINTER_SIZE)) {
+                PSTR_FAR msg;
+                msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+                raiseExceptionWithMessage(ClassFormatError, msg);
+            } else {
+                fseek(file, (pos + length), SEEK_SET);
+            }
+        }
+    } else {
+        far_ptr_of(struct jarPointerStruct *) ds;
+        //struct jarPointerStruct *ds = (struct jarPointerStruct *)ClassFile;
+        unsigned int avail;
+        ds.common_ptr_ = ClassFile.common_ptr_;
+        avail = getDWordAt(ds.common_ptr_ + JARPOINTER_DATALEN) - (i4)getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX);
+        if (avail < length) {
+            PSTR_FAR msg;
+            msg.common_ptr_ = address_24_of(KVM_MSG_CLASSFILE_SIZE_DOES_NOT_MATCH);
+            raiseExceptionWithMessage(ClassFormatError, msg);
+        } else {
+            //ds->dataIndex += length;
+            setDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX, length + getDWordAt(ds.common_ptr_ + JARPOINTER_DATAINDEX));
+        }
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      isValidName()
+* TYPE:          private class file load operation
+* OVERVIEW:      validate a class, field, or method name
+* INTERFACE:
+*   parameters:  pointer to a name, name type
+*   returns:     a boolean indicating the validity of the name
+*=======================================================================*/
+BOOL isValidName(PSTR_FAR name, enum validName_type type) {
+    BOOL result;
+    u2 length = hstrlen(name.common_ptr_);
+
+    if (length > 0) {
+        if (getCharAt(name.common_ptr_) == '<') {
+            result = (type == LegalMethod) &&
+                ((hstrcmp(name.common_ptr_, address_24_of("<init>")) == 0) ||
+                (hstrcmp(name.common_ptr_, address_24_of("<clinit>")) == 0));
+        } else {
+            PSTR_FAR p;
+            if (type == LegalClass && getCharAt(name.common_ptr_) == '[') {
+                p = skipOverFieldType(name, FALSE, length);
+            } else {
+                p = skipOverFieldName(name, type == LegalClass, length);
+            }
+            result = (p.common_ptr_ != 0) && (p.common_ptr_ - name.common_ptr_ == length);
+        }
+    } else {
+        result = FALSE;
+    }
+    return result;
 }

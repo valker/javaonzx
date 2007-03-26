@@ -17,11 +17,11 @@ enum validName_type {LegalMethod, LegalField, LegalClass};
 void loadClassfile(INSTANCE_CLASS_FAR CurrentClass, BOOL fatalErrorIfFail);
 FILEPOINTER_FAR    openClassfile(INSTANCE_CLASS_FAR clazz);
 void    closeClassfile(FILEPOINTER_HANDLE_FAR);
-i1      loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR);
+i2      loadByteNoEOFCheck(FILEPOINTER_HANDLE_FAR);
 u1      loadByte(FILEPOINTER_HANDLE_FAR);
 u2      loadShort(FILEPOINTER_HANDLE_FAR);
 u4      loadCell(FILEPOINTER_HANDLE_FAR);
-void    loadBytes(FILEPOINTER_HANDLE_FAR, far_ptr buffer, int length);
+void    loadBytes(FILEPOINTER_HANDLE_FAR, far_ptr buffer, u2 length);
 BOOL    isValidName(PSTR_FAR name, enum validName_type);
 void    skipBytes(FILEPOINTER_HANDLE_FAR, unsigned long i);
 

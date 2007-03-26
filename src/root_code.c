@@ -5,10 +5,12 @@
 */
 
 #include <string.h>
+#include <stdio.h>
 #include "common.h"
 #include "zx128hmem.h"
 #include "root_code.h"
 #include "hashtable.h"
+#include "zxfile.h"
 
 #define GETPAGE(fp) ((u1)(fp >> 16))
 
@@ -293,4 +295,35 @@ non_banked far_ptr  hstrchr(far_ptr farString, char c )
     }
     restoreMMUState(mmu);
     return r.common_ptr_;
+}
+
+
+non_banked i2 hfread(far_ptr DstBuf, u1 ElementSize, u2 Count, FILE * File) {
+    const u1 mmu = getMMUState();
+    i2 realTotal = 0;
+    u2 TotalSize = ElementSize * Count;
+    u1 buf[BUF_SIZE];
+    setPage(GETPAGE(DstBuf));
+    while (TotalSize)
+    {
+        u2 actualSize = TotalSize > BUF_SIZE ? BUF_SIZE : TotalSize;
+        u2 realSize = fread(&buf[0], 1, actualSize, File);
+        memcpy((void*)DstBuf, &buf[0], realSize);
+        realTotal += realSize;
+        if (realSize < actualSize) {
+            break;
+        }
+    }
+    restoreMMUState(mmu);
+    return realTotal;
+}
+
+
+non_banked void     SET_LONG_FROM_HALVES(far_ptr dest, u4 lo, u4 hi) {
+    const u1 mmu = getMMUState();
+    u4* ptr = (u4*)dest;
+    setPage(GETPAGE(dest));
+    *ptr++ = lo;
+    *ptr = hi;
+    restoreMMUState(mmu);
 }

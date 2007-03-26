@@ -351,26 +351,33 @@ INTERNED_STRING_INSTANCE_FAR internString(PSTR_FAR utf8string, u2 length) {
     HASHTABLE_FAR table = InternStringTable;
     u2 hash = stringHash(utf8string, length);
     u2 index = hash % getWordAt(table.common_ptr_ + HASHTABLE_BUCKETCOUNT);
-    unsigned int utfLength = utfStringLength(utf8string, length);
+    u2 utfLength = utfStringLength(utf8string, length);
 
-    INTERNED_STRING_INSTANCE_FAR string, *stringPtr;
+    INTERNED_STRING_INSTANCE_FAR string;
+    far_ptr_of(INTERNED_STRING_INSTANCE_FAR) stringPtr;
 
-    stringPtr = (INTERNED_STRING_INSTANCE *)&table->bucket[index];
+    //stringPtr = (INTERNED_STRING_INSTANCE *)&table->bucket[index];
+    stringPtr.common_ptr_ = table.common_ptr_ + HASHTABLE_BUCKET + index * sizeof(PUTF_HASH_ENTRY_FAR);
 
-    for (string = *stringPtr; string != NULL; string = string->next) { 
-        if (string->length == utfLength) { 
-            SHORTARRAY chars = string->array;
-            int offset = string->offset;
-            const char *p = utf8string;
+    for (   string.common_ptr_ = getDWordAt(stringPtr.common_ptr_); 
+            string.common_ptr_ != 0; 
+            string.common_ptr_ = getDWordAt(string.common_ptr_ + UTF_NEXT)) { 
+        if (getWordAt(string.common_ptr_ + UTF_LENGTH) == utfLength) { 
+            SHORTARRAY_FAR chars;
+            u2 offset = getWordAt(string.common_ptr_ + INTSTRINST_OFFSET);
+            PSTR_FAR p = utf8string;
             unsigned int i;
+            chars.common_ptr_ = getDWordAt(string.common_ptr_ + INTSTRINST_ARRAY);
+
+
             for (i = 0; i < utfLength; i++) { 
-                short unichar = utf2unicode(&p);
-                if (unichar != chars->sdata[offset + i]) { 
+                u2 unichar = utf2unicode(&p);
+                if (unichar != getWordAt(chars.common_ptr_ + SHORTAR_SDATA + sizeof(u2) * (offset + i))) { 
                     /* We want to do "continue  <outerLoop>", but this is C */;
                     goto continueOuterLoop;
                 }
             }
-            if (EXCESSIVE_GARBAGE_COLLECTION && !ASYNCHRONOUS_NATIVE_FUNCTIONS){
+            if (1/*EXCESSIVE_GARBAGE_COLLECTION && !ASYNCHRONOUS_NATIVE_FUNCTIONS*/){
                 /* We might garbage collect, so we do  */
                 garbageCollect(0);
             }
@@ -382,7 +389,46 @@ continueOuterLoop:
 
 
     string = instantiateInternedString(utf8string, length);
-    string->next = *stringPtr;
-    *stringPtr = string;
+    //string->next = *stringPtr;
+    setDWordAt(string.common_ptr_ + INTSTRINST_NEXT, getDWordAt(stringPtr.common_ptr_));
+    //*stringPtr = string;
+    setDWordAt(stringPtr.common_ptr_, string.common_ptr_);
     return string;
+}
+
+
+/*=========================================================================
+* FUNCTION:      utfStringLength
+* OVERVIEW:      Determine the number of 16-bit characters in a UTF-8 string.
+*
+*   parameters:  utfstring_ptr: pointer to a UTF8 string. 
+*                length of string
+*   returns      string length
+*=======================================================================*/
+
+u2 utfStringLength(PSTR_FAR utfstring, u2 length) 
+{
+    PSTR_FAR ptr = utfstring;
+    u2 count;
+    PSTR_FAR end;
+    end.common_ptr_ = utfstring.common_ptr_ + length;
+
+    for (count = 0; ptr.common_ptr_ < end.common_ptr_; count++) { 
+        const u1 ch = getCharAt(ptr.common_ptr_);
+        if (ch < 0x80) { 
+            /* 99% of the time */
+            ptr.common_ptr_++;
+        } else { 
+            switch(ch >> 4) { 
+                default:
+                    fatalError(KVM_MSG_BAD_UTF_STRING);
+                    break;
+                case 0xC: case 0xD: 
+                    ptr.common_ptr_ += 2; break;
+                case 0xE:
+                    ptr.common_ptr_ += 3; break;
+            }
+        }
+    }
+    return count;
 }
