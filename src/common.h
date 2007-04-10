@@ -34,4 +34,5 @@ typedef union {
   u2  words[2];
 } ldecoder;
 
+#define COUNTOF(a) (sizeof(a)/sizeof(a[0]))
 #endif

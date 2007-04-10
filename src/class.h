@@ -138,6 +138,8 @@ struct arrayStruct {
     u4 data[1];  
 };
 
+#define ARRAYSTRUCT_DATA offsetof(struct arrayStruct, data)
+
 
 /* These are never created directly. */
 /* It's what a java.lang.String looks like */
@@ -248,6 +250,7 @@ char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth);
 INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz);
 CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length);
 SHORTARRAY_FAR createCharArray(PSTR_FAR utf8stringArg, u2 utf8length, u2* unicodelengthP, BOOL isPermanent);
+ARRAY_FAR    instantiateArray(ARRAY_CLASS_FAR arrayClass, u4 length);
 
 #define RunCustomCodeMethod_MAX_STACK_SIZE 4
 

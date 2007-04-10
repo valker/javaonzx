@@ -1233,3 +1233,29 @@ BOOL isValidName(PSTR_FAR name, enum validName_type type) {
     }
     return result;
 }
+
+
+/*=========================================================================
+ * FUNCTION:      replaceLetters()
+ * TYPE:          auxiliary private function
+ * OVERVIEW:      Convert all characters c1 in the given string to
+ *                character c2.
+ * INTERFACE:
+ *   parameters:  string, two characters
+ *   returns:     modified string
+ *=======================================================================*/
+
+PSTR_FAR replaceLetters(PSTR_FAR string, char c1, char c2) {
+    u2 length = hstrlen(string.common_ptr_);
+    u2 i;
+    PSTR_FAR c = string;
+
+    for (i = 0; i < length; i++, c.common_ptr_++) {
+        if (getCharAt(c.common_ptr_) == c1) {
+            //*c = c2;
+            setCharAt(c.common_ptr_, c2);
+        }
+    }
+
+    return string;
+}
