@@ -24,6 +24,7 @@ u4      loadCell(FILEPOINTER_HANDLE_FAR);
 void    loadBytes(FILEPOINTER_HANDLE_FAR, far_ptr buffer, u2 length);
 BOOL    isValidName(PSTR_FAR name, enum validName_type);
 void    skipBytes(FILEPOINTER_HANDLE_FAR, unsigned long i);
+PSTR_FAR replaceLetters(PSTR_FAR string, char c1, char c2);
 
 #endif
 
