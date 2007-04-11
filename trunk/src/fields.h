@@ -43,6 +43,7 @@ struct methodStruct {
 #define METHOD_FRAMESIZE  offsetof(struct methodStruct, frameSize)
 #define METHOD_U  offsetof(struct methodStruct, u)
 #define METHOD_OFCLASS  offsetof(struct methodStruct, ofClass)
+#define METHOD_ARGCOUNT  offsetof(struct methodStruct, argCount)
 
 #define JAVA_MAXSTACK offsetof(struct JavaStruct, maxStack)
 #define JAVA_HANDLERS offsetof(struct JavaStruct, handlers)
