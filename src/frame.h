@@ -8,8 +8,22 @@
 #define FRAME_H_INCLUDED
 
 #include "jvm_types.h"
+#include "main.h"
 
 #define MAXIMUM_STACK_AND_LOCALS 512
+
+/* STACK */
+struct stackStruct {
+    STACK_FAR   next;
+    u2          size;
+    u2          xxunusedxx; /* must be multiple of 4 on all platforms */
+    far_ptr     cells[STACKCHUNKSIZE];
+};
+
+#define STACKSTRUCT_NEXT offsetof(struct stackStruct,next)
+#define STACKSTRUCT_SIZE offsetof(struct stackStruct,size)
+#define STACKSTRUCT_CELLS offsetof(struct stackStruct,cells)
+
 
 /* HANDLER */
 struct exceptionHandlerStruct {
@@ -38,6 +52,18 @@ struct exceptionHandlerTableStruct {
 #define SIZEOF_HANDLERTABLE(n) (sizeof(struct exceptionHandlerTableStruct) + (n - 1) * SIZEOF_HANDLER)
 
 
+/* FRAME (allocated inside execution stacks of threads) */
+struct frameStruct {
+    FRAME_FAR   previousFp; /* Stores the previous frame pointer */
+    BYTES_FAR   previousIp; /* Stores the previous program counter */
+    far_ptr     previousSp; /* Stores the previous stack pointer */
+    METHOD_FAR  thisMethod; /* Pointer to the method currently under execution */
+    STACK_FAR   stack;      /* Stack chunk containing the frame */
+    OBJECT_FAR  syncObject; /* Holds monitor object if synchronized method call */
+};
+
+#define FRAMESTRUCT_SYNCOBJECT offsetof(struct frameStruct, syncObject)
+
 #define FOR_EACH_HANDLER(__var__, handlerTable) {                                       \
     HANDLER_FAR __first_handler__, __end_handler__, __var__;                             \
     __first_handler__.common_ptr_ = handlerTable.common_ptr_ + HANDLERTABLE_HANDLERS;   \
@@ -61,5 +87,8 @@ void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR exceptionMe
 void fatalError(const char* errorMessage);
 void raiseException(PSTR_FAR exceptionClassName);
 const u1 * copyStrToBuffer(u1* buffer, far_ptr str);
+void pushFrame(METHOD_FAR thisMethod);
+
+
 
 #endif

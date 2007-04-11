@@ -9,5 +9,8 @@
 
 void AlertUser(const char* message);
 
+#define BASETIMESLICE 1000
+#define STACKCHUNKSIZE    128
+
 #endif
 

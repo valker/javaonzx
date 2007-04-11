@@ -273,4 +273,45 @@ typedef enum {
     LASTBYTECODE          = 0xDF
 } ByteCode ;
 
+struct GlobalStateStruct { 
+    BYTES_FAR           gs_ip; /* Instruction pointer (program counter) */
+    far_ptr             gs_sp; /* Execution stack pointer */
+    far_ptr             gs_lp; /* Local variable pointer */
+    FRAME_FAR           gs_fp; /* Current frame pointer */
+    CONSTANTPOOL_FAR    gs_cp; /* Constant pool pointer */
+};
+
+typedef void (*CustomCodeCallbackFunction)(FRAME_HANDLE_FAR exceptionFrame);
+
+
+extern struct GlobalStateStruct GlobalState;
+
+
+#define ip_global GlobalState.gs_ip
+#define sp_global GlobalState.gs_sp
+#define lp_global GlobalState.gs_lp
+#define fp_global GlobalState.gs_fp
+#define cp_global GlobalState.gs_cp
+
+
+#define getIP()  (ip_global.common_ptr_)
+#define getSP()  (sp_global)
+#define getLP()  (lp_global)
+#define getFP()  (fp_global.common_ptr_)
+#define getCP()  (cp_global.common_ptr_)
+
+#define setIP(x) (ip_global.common_ptr_ = (x))
+#define setSP(x) (sp_global = (x))
+#define setLP(x) (lp_global = (x))
+#define setFP(x) (fp_global.common_ptr_ = (x))
+#define setCP(x) (cp_global.common_ptr_ = (x))
+
+#define pushStackAsType(_type_, data)   ((++getSP()),setDWordAt(getSP(),data));
+
+
+//#define secondStackAsType(_type_)       (*(_type_ *)(getSP() - 1))
+#define secondStackAsType(_type_)       (getDWordAt(getSP() - 4))
+#define topStackAsType(_type_)          (getDWordAt(getSP()))
+
+
 #endif

@@ -83,34 +83,17 @@ typedef void(non_banked *VoidFunc)(void);
 void softReset(void) {
     //_opc(0x0e); // LD C,n
     //_opc(0x00);
-
-    //_opc(0x3e); // LD A,n
-    //_opc(0x00);
-
-    //_opc(0xcd); // CALL nn
-    //_opc(0x13);
-    //_opc(0x3d);
-
-    *(u2*)0x5CC8 = 80;
-    *(u2*)0x5CAF = 0xFF;
-}
-
-void initDisk(void) {
-    _opc(0x0e); // LD C,n
-    _opc(0x18);
-
-    _opc(0xcd); // CALL nn
-    _opc(0x13);
-    _opc(0x3d);
 }
 
 void initTrDos(void) {
-    //VoidFunc v = (VoidFunc) 0x3D21;
-    *(u2*)0x5C4F = 0x5D25;
-    (*(VoidFunc)0x3D21)();
+    ////VoidFunc v = (VoidFunc) 0x3D21;
+    //*(u2*)0x5C4F = 0x5D25;
+    //(*(VoidFunc)0x3D21)();
 
-    softReset();
-    initDisk();
+    //softReset();
+    //initDisk();
+    //initDrive(0);
+    //initDisk();
 }
 
 static INSTANCE_CLASS_FAR loadMainClass(PSTR_FAR className)
@@ -193,15 +176,14 @@ void main(void)
         InitializeGlobals();
         InitializeMemoryManagement();
         InitializeJavaSystemClasses();
-                    /* Load the main application class */
+            /* Load the main application class */
             /* If loading fails, we get a C level exception */
             /* and control is transferred to the CATCH block below */
         {
-            PSTR_FAR argv[] = {
-                {address_24_of("someClass")},
-                {address_24_of("param")}
-            };
+            PSTR_FAR argv[2];
             int argc = COUNTOF(argv);
+            argv[0].common_ptr_ = address_24_of(&"someClass");
+            argv[1].common_ptr_ = address_24_of(&"param");
             {
                 mainClass = loadMainClass(argv[0]);
             }
