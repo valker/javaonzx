@@ -82,6 +82,8 @@ extern PSTR_FAR VerifyError;
 extern PSTR_FAR ClassNotFoundException;
 extern PSTR_FAR IllegalAccessError;
 
+extern PSTR_FAR NegativeArraySizeException;
+
 //void raiseExceptionWithMessage(const char* exceptionClassName, const char* exceptionMessage);
 void raiseExceptionWithMessage(PSTR_FAR exceptionClassName, PSTR_FAR exceptionMessage);
 void fatalError(const char* errorMessage);

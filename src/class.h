@@ -111,15 +111,18 @@ struct arrayClassStruct {
         CLASS_FAR elemClass;        /* Element class of object arrays */
         u4 primType;              /* Element type for primitive arrays */
     } u;
-    u4 itemSize;                  /* Size (bytes) of individual elements */
+    u1 itemSize;                  /* Size (bytes) of individual elements */
     /* wants to be GCT_ObjectType rather than */
     /* an int. But the Palm makes enumerations*/
     /* into "short" */
-    u4 gcType;                    /* GCT_ARRAY or GCT_OBJECTARRAY */
+    //u4 gcType;                    /* GCT_ARRAY or GCT_OBJECTARRAY */
+    GCT_ObjectType gcType;
     u4 flags;                     /*   */
 };
 
 #define ARRAY_CLASS_CLAZZ offsetof(struct arrayClassStruct, clazz)
+#define ARRAY_CLASS_GCTYPE offsetof(struct arrayClassStruct, gcType)
+#define ARRAY_CLASS_ITEMSIZE offsetof(struct arrayClassStruct, itemSize)
 
 /* INSTANCE */
 struct instanceStruct {
@@ -138,6 +141,8 @@ struct arrayStruct {
     u4 data[1];  
 };
 
+#define ARRAYSTRUCT_OFCLASS offsetof(struct arrayStruct, ofClass)
+#define ARRAYSTRUCT_LENGTH offsetof(struct arrayStruct, length)
 #define ARRAYSTRUCT_DATA offsetof(struct arrayStruct, data)
 
 
@@ -238,7 +243,7 @@ ARRAY_CLASS_FAR getArrayClass(int depth, INSTANCE_CLASS_FAR baseClass, char sign
 CLASS_FAR getClass(PSTR_FAR name);
 PSTR_FAR getClassName(CLASS_FAR clazz);
 INSTANCE_FAR instantiate(INSTANCE_CLASS_FAR);
-u4     arrayItemSize(i2 arrayType);
+u1     arrayItemSize(i2 arrayType);
 char typeCodeToSignature(char typeCode);
 void InitializeJavaSystemClasses(void);
 CLASS_FAR getRawClass(PSTR_FAR name);
@@ -250,7 +255,7 @@ char*    getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth);
 INSTANCE_CLASS_FAR revertToRawClass(INSTANCE_CLASS_FAR clazz);
 CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length);
 SHORTARRAY_FAR createCharArray(PSTR_FAR utf8stringArg, u2 utf8length, u2* unicodelengthP, BOOL isPermanent);
-ARRAY_FAR    instantiateArray(ARRAY_CLASS_FAR arrayClass, u4 length);
+ARRAY_FAR    instantiateArray(ARRAY_CLASS_FAR arrayClass, i4 length);
 void initializeClass(INSTANCE_CLASS_FAR);
 
 #define RunCustomCodeMethod_MAX_STACK_SIZE 4
