@@ -24,6 +24,7 @@
 
 static PSTR_FAR UnfoundException = {0};
 static PSTR_FAR UnfoundExceptionMsg = {0};
+PSTR_FAR NegativeArraySizeException = {0};
 
 const char ArithmeticException[] = "java/lang/ArithmeticException";
 const char ArrayIndexOutOfBoundsException[] = "java/lang/ArrayIndexOutOfBoundsException";
@@ -37,7 +38,7 @@ const char IllegalThreadStateException[] = "java/lang/IllegalThreadStateExceptio
 const char IndexOutOfBoundsException[] = "java/lang/IndexOutOfBoundsException";
 const char InstantiationException[] = "java/lang/InstantiationException";
 const char InterruptedException[] = "java/lang/InterruptedException";
-const char NegativeArraySizeException[] = "java/lang/NegativeArraySizeException";
+const char NegativeArraySizeException_[] = "java/lang/NegativeArraySizeException";
 const char NullPointerException[] = "java/lang/NullPointerException";
 const char NumberFormatException[] = "java/lang/NumberFormatException";
 const char RuntimeException[] = "java/lang/RuntimeException";
@@ -101,6 +102,8 @@ void initFrame(void)
     VerifyError.common_ptr_ = address_24_of(&VerifyError_);
 
     ClassNotFoundException.common_ptr_ = address_24_of(&ClassNotFoundException_);
+
+    NegativeArraySizeException.common_ptr_ = address_24_of(&NegativeArraySizeException_);
 }
 
 /*=========================================================================

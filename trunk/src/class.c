@@ -22,6 +22,7 @@
 #include "fields.h"
 #include "interpret.h"
 #include "frame.h"
+#include "verifier.h"
 
 THROWABLE_INSTANCE_FAR OutOfMemoryObject;
 THROWABLE_INSTANCE_FAR StackOverflowObject;
@@ -47,6 +48,8 @@ NameTypeKey runNameAndType;    /* void run() */
 NameTypeKey mainNameAndType;   /* void main(String[]) */
 
 METHOD_FAR RunCustomCodeMethod;
+
+static void runClinit(FRAME_HANDLE_FAR);
 
 
 CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length) {
@@ -413,7 +416,7 @@ getArrayClass(int depth, INSTANCE_CLASS_FAR baseClass, char signCode)
             {
                 //u4 itemSize = arrayItemSize(T_REFERENCE);
                 //writeHmem((void*)&itemSize,clazz.common_ptr_ + offsetof(struct arrayClassStruct, itemSize), sizeof(itemSize));
-                setDWordAt(clazz.common_ptr_ + offsetof(struct arrayClassStruct, itemSize), arrayItemSize(T_REFERENCE));
+                setCharAt(clazz.common_ptr_ + ARRAY_CLASS_ITEMSIZE, arrayItemSize(T_REFERENCE));
             }
 
             if (isPrimitiveBase) {
@@ -555,9 +558,9 @@ INSTANCE_FAR instantiate(INSTANCE_CLASS_FAR thisClass)
 *   returns:     array item size
 *=======================================================================*/
 
-u4 arrayItemSize(i2 arrayType)
+u1 arrayItemSize(i2 arrayType)
 {
-    u4 itemSize;
+    u1 itemSize;
 
     switch (arrayType) {
     case T_BOOLEAN: case T_BYTE:
@@ -856,4 +859,97 @@ char* getStringContentsSafely(STRING_INSTANCE_FAR string, char *buf, u2 lth) {
     /* Terminate the C/C++ string with zero */
     buf[length] = 0;
     return buf;
+}
+
+
+/*=========================================================================
+* FUNCTION:      instantiateArray()
+* TYPE:          constructor
+* OVERVIEW:      Create an array of given type and size.
+* INTERFACE:
+*   parameters:  array class, array size
+*   returns:     pointer to array object instance
+* NOTE:          This operation only allocates the space for the
+*                array and initializes its slots to zero.
+*                Actual constructor for initializing the array
+*                must be invoked separately.
+*=======================================================================*/
+ARRAY_FAR instantiateArray(ARRAY_CLASS_FAR arrayClass, i4 length) {
+    ARRAY_FAR newArray;
+    if (length < 0) {
+        raiseException(NegativeArraySizeException);
+        newArray.common_ptr_ = 0;
+        return newArray;
+    } else if (length > 0x1000000) {
+        /* Don't even try; 'dataSize' below might overflow */
+        THROW(OutOfMemoryObject);
+    } else {
+        /* Does this array contain pointers or not? */
+        const GCT_ObjectType gctype = getCharAt(arrayClass.common_ptr_ + ARRAY_CLASS_GCTYPE);
+        /* How big is each item */
+        const u1 slotSize = getCharAt(arrayClass.common_ptr_ + ARRAY_CLASS_ITEMSIZE);
+        /* What's the total data size */
+        const u4 dataSize = (length * slotSize);
+        /* What's the total size */
+        u4 arraySize = SIZEOF_ARRAY(dataSize);
+
+        newArray.common_ptr_ = mallocHeapObject(arraySize, gctype);
+        if (newArray.common_ptr_ == 0) {
+            THROW(OutOfMemoryObject);
+        } else {
+            hmemset(newArray.common_ptr_, 0, arraySize);
+            //newArray->ofClass   = arrayClass;
+            setDWordAt(newArray.common_ptr_ + ARRAYSTRUCT_OFCLASS, arrayClass.common_ptr_);
+            //newArray->length    = length;
+            setDWordAt(newArray.common_ptr_ + ARRAYSTRUCT_LENGTH, length);
+        }
+        return newArray;
+    }
+}
+
+
+/*=========================================================================
+* FUNCTION:      initializeClass()
+* TYPE:          constructor
+* OVERVIEW:      After loading a class, it must be initialized
+*                by executing the possible internal static
+*                constructor '<clinit>'. This will initialize the
+*                necessary static structures.
+*
+*                This function sets up the necessary Class.runClinit
+*                frame and returns to the interpreter.
+* INTERFACE:
+*   parameters:  class pointer
+*   returns:     <nothing>
+*=======================================================================*/
+void initializeClass(INSTANCE_CLASS_FAR thisClass) {
+    if (getWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_STATUS) == CLASS_ERROR) {
+        raiseException(NoClassDefFoundError);
+    } else if (getWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_STATUS) < CLASS_READY) {
+        if (getWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_STATUS) < CLASS_VERIFIED) {
+            verifyClass(thisClass);
+        }
+        /*
+        * VerifyError will have been thrown or status will be
+        * CLASS_VERIFIED. We can skip execution of <clinit> altogether if
+        * it does not exists AND the superclass is already initialised.
+        */
+        if ((getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) == NULL ||
+            getDWordAt(getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) + INSTANCE_CLASS_STATUS) == CLASS_READY) &&
+            getSpecialMethod(thisClass,clinitNameAndType).common_ptr_ == 0) {
+                setClassStatus(thisClass,CLASS_READY);
+        }
+        else {
+            TRY {
+                pushFrame(RunCustomCodeMethod);
+                pushStackAsType(CustomCodeCallbackFunction, (far_ptr)&runClinit);
+                pushStackAsType(INSTANCE_CLASS_FAR, thisClass.common_ptr_);
+                pushStackAsType(long, 1);
+            } CATCH (e) {
+                /* Stack overflow */
+                setClassStatus(thisClass, CLASS_ERROR);
+                THROW(e);
+            } END_CATCH
+        }
+    }
 }
