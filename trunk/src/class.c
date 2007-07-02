@@ -23,6 +23,7 @@
 #include "interpret.h"
 #include "frame.h"
 #include "verifier.h"
+#include "thread.h"
 
 THROWABLE_INSTANCE_FAR OutOfMemoryObject;
 THROWABLE_INSTANCE_FAR StackOverflowObject;
@@ -50,6 +51,7 @@ NameTypeKey mainNameAndType;   /* void main(String[]) */
 METHOD_FAR RunCustomCodeMethod;
 
 static void runClinit(FRAME_HANDLE_FAR);
+static void runClinitException(FRAME_HANDLE_FAR);
 
 
 CLASS_FAR getRawClassX(CONST_CHAR_HANDLE_FAR nameH, i2 offset, i2 length) {
@@ -934,7 +936,7 @@ void initializeClass(INSTANCE_CLASS_FAR thisClass) {
         * CLASS_VERIFIED. We can skip execution of <clinit> altogether if
         * it does not exists AND the superclass is already initialised.
         */
-        if ((getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) == NULL ||
+        if ((getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) == 0 ||
             getDWordAt(getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS) + INSTANCE_CLASS_STATUS) == CLASS_READY) &&
             getSpecialMethod(thisClass,clinitNameAndType).common_ptr_ == 0) {
                 setClassStatus(thisClass,CLASS_READY);
@@ -952,4 +954,303 @@ void initializeClass(INSTANCE_CLASS_FAR thisClass) {
             } END_CATCH
         }
     }
+}
+
+
+/*=========================================================================
+* FUNCTION:      runClinit()
+* TYPE:          private initialization of a class
+* OVERVIEW:      Initialize a class. The Class.runCustomCode frame has
+*                already been pushed.
+*
+*        This function follows the exact steps as documented in
+*        the Java virtual machine spec (2ed) 2.17.5, except that
+*        Error is used instead of ExceptionInInitializerError
+*        because the latter is not defined in CLDC.
+*=======================================================================*/
+static void runClinit(FRAME_HANDLE_FAR exceptionFrameH) {
+    INSTANCE_CLASS_FAR thisClass;
+    int state;
+    BOOL haveMonitor = FALSE;
+    if (exceptionFrameH.common_ptr_ != 0) {
+        runClinitException(exceptionFrameH);
+        return;
+    }
+
+    state = topStackAsType(far_ptr);
+    thisClass.common_ptr_ = secondStackAsType(INSTANCE_CLASS_FAR);
+
+    /* The 11 steps as documented in page 53 of the virtual machine spec. */
+    switch (state) {
+    case 1:
+        /* A short cut that'll probably happen 99% of the time.  This class
+        * has no monitor, and no one is in the middle of initializing this
+        * class.  Since our scheduler is non preemptive, we can just
+        * mark the class, without worrying about the monitor or other threads.
+        */
+        if (!OBJECT_HAS_MONITOR(getDWordAt(thisClass.common_ptr_))
+            && getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_INITTHREAD) == 0) {
+                goto markClass;
+        }
+
+        /* Step 1:  Grab the class monitor so we have exclusive access. */
+        {
+            OBJECT_FAR of;
+            of.common_ptr_ = thisClass.common_ptr_;
+            if (monitorEnter(of) != MonitorStatusOwn) {
+                /* We've been forced to wait.  When we're awoken, we'll have
+                * the lock */
+
+                //topStack = 2;
+                setDWordAt(getSP(), 2);
+
+                return;
+            } else {
+                /* FALL THROUGH.  We have the lock */
+            }
+        }
+
+    case 2:
+        haveMonitor = TRUE;
+
+        if (getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_INITTHREAD) != 0
+            && getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_INITTHREAD) != CurrentThread.common_ptr_) {
+            /* Step 2:
+            * Someone else is initializing this class.  Just wait until
+            * a notification.  Of course, we'll have to recheck, since the
+            * class could also be notified for other reasons.
+            */
+            long64 timeout;
+            ll_setZero(timeout);
+            {
+                OBJECT_FAR of;
+                of.common_ptr_ = thisClass.common_ptr_;
+                monitorWait(of, timeout);
+            }
+            //topStack = 2;
+            setDWordAt(getSP(), 2);
+            return;
+        }
+
+markClass:
+        if (getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_INITTHREAD) == CurrentThread.common_ptr_ ||
+            getWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_STATUS) == CLASS_READY) { /* step 4 */
+                /* Step 3, Step 4:
+                * This thread is already initializing the class, or the class
+                * has somehow already become initialized.  We're done.
+                */
+                if (haveMonitor) {
+                    char *junk;
+                    OBJECT_FAR of;
+                    of.common_ptr_ = thisClass.common_ptr_;
+                    monitorExit(of, &junk);
+                }
+                popFrame();
+                return;
+        }
+        if (getWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_STATUS) == CLASS_ERROR) {
+            /* Step 5:
+            * What can we do?
+            */
+            if (haveMonitor) {
+                char *junk;
+                OBJECT_FAR of;
+                of.common_ptr_ = thisClass.common_ptr_;
+                monitorExit(of, &junk);
+            }
+            popFrame();
+            return;
+        }
+
+        /* Step 6:
+        * Mark that we're about to initialize this class */
+        setClassInitialThread(thisClass, CurrentThread);
+        if (haveMonitor) {
+            char *junk;
+            OBJECT_FAR of;
+            of.common_ptr_ = thisClass.common_ptr_;
+            monitorExit(of, &junk);
+            haveMonitor = FALSE;
+        }
+        /* FALL THROUGH */
+
+    case 3:
+        /* Step 7:
+        * Initialize the superclass, if necessary */
+        if ((getWordAt(thisClass.common_ptr_ + CLASS_ACCESSFLAGS) & ACC_INTERFACE) == 0) {
+            INSTANCE_CLASS_FAR superClass;
+            superClass.common_ptr_ = getDWordAt(thisClass.common_ptr_ + INSTANCE_CLASS_SUPERCLASS);
+            if (superClass.common_ptr_ != 0 && getWordAt(superClass.common_ptr_ + INSTANCE_CLASS_STATUS) != CLASS_READY) {
+                //topStack = 4;
+                setDWordAt(getSP(), 4);
+                initializeClass(superClass);
+                return;
+            }
+        }
+        /* FALL THROUGH */
+
+    case 4: {
+        /* Step 8:
+        * Run the <clinit> method, if the class has one
+        */
+        METHOD_FAR thisMethod = getSpecialMethod(thisClass, clinitNameAndType);
+        if (thisMethod.common_ptr_ != 0) {
+
+            //topStack = 5;
+            setDWordAt(getSP(), 5);
+            pushFrame(thisMethod);
+            return;
+        } else {
+            /* No <clinit> method. */
+            /* FALL THROUGH */
+        }
+            }
+    case 5:
+        /* Step 9:
+        * Grab the monitor so we can change the flags, and wake up any
+        * other thread waiting on us.
+        *
+        * SHORTCUT: 99% of the time, there is no contention for the class.
+        * Since our scheduler is non-preemptive, if there is no contention
+        * for this class, we just go ahead and unmark the class, without
+        * bothering with the monitor.
+        */
+
+        //if (!OBJECT_HAS_MONITOR(thisClass->clazz)) {
+        if (!OBJECT_HAS_MONITOR(thisClass.common_ptr_)) {
+            goto unmarkClass;
+        }
+
+        {
+            OBJECT_FAR of;
+            of.common_ptr_ = thisClass.common_ptr_;
+            if (monitorEnter(of) != MonitorStatusOwn) {
+                /* When we wake up, we'll have the monitor */
+                setDWordAt(getSP(), 6);
+                return;
+            } else {
+                /* FALL THROUGH */
+            }
+        }
+
+    case 6:
+        haveMonitor = TRUE;
+        /* Step 9, cont.
+        * Mark the class as initialized. Wake up anyone waiting for the
+        * class to be initialized.  Return the monitor.
+        */
+unmarkClass:
+        setClassInitialThread(thisClass, NULL);
+        setClassStatus(thisClass, CLASS_READY);
+#if ENABLE_JAVA_DEBUGGER
+        if (vmDebugReady) {
+            CEModPtr cep = GetCEModifier();
+            cep->loc.classID = GET_CLASS_DEBUGGERID(&thisClass->clazz);
+            cep->threadID = getObjectID((OBJECT)CurrentThread->javaThread);
+            cep->eventKind = JDWP_EventKind_CLASS_PREPARE;
+            insertDebugEvent(cep);
+        }
+#endif /* ENABLE_JAVA_DEBUGGER */
+        if (haveMonitor) {
+            char *junk;
+            OBJECT_FAR of;
+            of.common_ptr_ = thisClass.common_ptr_;
+            monitorNotify(of, TRUE); /* wakeup everyone */
+            monitorExit(of, &junk);
+        }
+        popFrame();
+        return;
+        /* Step 10, 11:
+        * These handle error conditions that cannot currently be
+        * implemented in the KVM.
+        */
+
+    default:
+        fatalVMError(KVM_MSG_STATIC_INITIALIZER_FAILED);
+    }
+}
+
+static void runClinitException(FRAME_HANDLE_FAR frameH)
+{
+    START_TEMPORARY_ROOTS
+        void **bottomStack = (void **)(unhand(frameH) + 1); /* transient */
+        INSTANCE_CLASS thisClass = bottomStack[1];
+        int state = (int)bottomStack[2];
+        DECLARE_TEMPORARY_ROOT(THROWABLE_INSTANCE, exception, bottomStack[0]);
+
+        /*
+        * Must be:
+        *   a. a class initialization during bootstrap (state == 1), or
+        *   a. executing either clinit or superclass(es) clinit
+        *      (state == 4 || state = 5)
+        */
+        if (state != 1 && state != 4 && state != 5)
+            fatalVMError(KVM_MSG_STATIC_INITIALIZER_FAILED);
+
+        setClassStatus(thisClass, CLASS_ERROR);
+        setClassInitialThread(thisClass, NULL);
+
+        /* Handle exception during clinit */
+        if (!isAssignableTo((CLASS)(exception->ofClass),(CLASS)JavaLangError)) {
+
+            /* Replace exception with Error, then continue the throwing */
+            DECLARE_TEMPORARY_ROOT(THROWABLE_INSTANCE, error,
+            (THROWABLE_INSTANCE)instantiate(JavaLangError));
+            DECLARE_TEMPORARY_ROOT(STRING_INSTANCE, messageString,
+            exception->message);
+            char *p = str_buffer;
+
+            /* Create the new message:
+            *   Static initializer: <className of throwable> <message>
+            */
+            strcpy(p, "Static initializer: ");
+            p += strlen(p);
+            getClassName_inBuffer(&exception->ofClass->clazz, p);
+            p += strlen(p);
+            if (messageString != NULL) {
+                strcpy(p, ": ");
+                p += strlen(p);
+                getStringContentsSafely(messageString, p,
+                    STRINGBUFFERSIZE - (p - str_buffer));
+                p += strlen(p);
+            }
+            error->message = instantiateString(str_buffer, p - str_buffer);
+            /* Replace the exception with our new Error, continue throwing */
+            *(THROWABLE_INSTANCE *)(unhand(frameH) + 1) = error;
+
+            /* ALTERNATIVE, JLS/JVMS COMPLIANT IMPLEMENTATION FOR THE CODE ABOVE:  */
+            /* The code below works correctly if class ExceptionInInitializerError */
+            /* is available.  For CLDC 1.1, we will keep on using the earlier code */
+            /* located above, since ExceptionInInitializerError is not supported.  */
+
+            /* Replace exception with Error, then continue the throwing */
+            /*
+            DECLARE_TEMPORARY_ROOT(THROWABLE_INSTANCE, error, NULL);
+
+            TRY {
+            raiseException(ExceptionInInitializerError);
+            } CATCH(e) {
+            if ((CLASS)e->ofClass == getClass(ExceptionInInitializerError)){
+            *((THROWABLE_INSTANCE*)&(e->backtrace) + 1) = exception;
+            }
+            error = e;
+            } END_CATCH
+            *(THROWABLE_INSTANCE *)(unhand(frameH) + 1) = error;
+            */
+        }
+
+        /* If any other thread is waiting for this, we should try to wake them
+        * up if we can.
+        */
+        if (OBJECT_HAS_REAL_MONITOR(&thisClass->clazz)) {
+            MONITOR monitor = OBJECT_MHC_MONITOR(&thisClass->clazz);
+            if (monitor->owner == NULL || monitor->owner == CurrentThread) {
+                char *junk;
+                monitorEnter((OBJECT)thisClass);
+                monitorNotify((OBJECT)thisClass, TRUE); /* wakeup everyone */
+                monitorExit((OBJECT)thisClass, &junk);
+            }
+        }
+
+    END_TEMPORARY_ROOTS
 }
