@@ -17,6 +17,9 @@ struct ClassInfo_ {
 //typedef unsigned long cell;
 typedef far_ptr cell;
 
+typedef struct { unsigned long low; unsigned long high; } long64;
+typedef struct { unsigned long low; unsigned long high; } ulong64;
+
 typedef struct ClassInfo_ ClassInfo;
 
 ////////////////////////////////////

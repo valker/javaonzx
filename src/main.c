@@ -25,6 +25,20 @@
 
 const ClassNativeImplementationType nativeImplementations[] = {0};
 
+int func(char d)
+{
+  char a;
+  char b;
+  char c;
+  if(d == 0) {
+    return 0;
+  } else {
+    a = func(d - 1);
+    b = d + 1;
+    c = a + b;
+    return a + b + c;
+  }
+}
 
 u1 class_image[]={
 #include "test_class.h"

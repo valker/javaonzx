@@ -41,6 +41,7 @@ typedef union monitorOrHashCode {
     _type_ ofClass; /* Pointer to the class of the instance */ \
     monitorOrHashCode mhc;
 
+#define MHC_OFFSET (4)
 
 struct throwableInstanceStruct { 
     COMMON_OBJECT_INFO(INSTANCE_CLASS_FAR)
@@ -98,9 +99,10 @@ struct instanceClassStruct {
 #define INSTANCE_CLASS_IFACETABLE   offsetof(struct instanceClassStruct, ifaceTable)
 #define INSTANCE_CLASS_CONSTPOOL    offsetof(struct instanceClassStruct, constPool)
 #define INSTANCE_CLASS_FIELDTABLE   offsetof(struct instanceClassStruct, fieldTable)
-#define INSTANCE_CLASS_METHODTABLE   offsetof(struct instanceClassStruct, methodTable)
-#define INSTANCE_CLASS_FINALIZER   offsetof(struct instanceClassStruct, finalizer)
-#define INSTANCE_CLASS_STATICFIELDS   offsetof(struct instanceClassStruct, staticFields)
+#define INSTANCE_CLASS_METHODTABLE  offsetof(struct instanceClassStruct, methodTable)
+#define INSTANCE_CLASS_FINALIZER    offsetof(struct instanceClassStruct, finalizer)
+#define INSTANCE_CLASS_STATICFIELDS offsetof(struct instanceClassStruct, staticFields)
+#define INSTANCE_CLASS_INITTHREAD   offsetof(struct instanceClassStruct, initThread)
 
 /* ARRAY_CLASS */
 struct arrayClassStruct {
@@ -295,5 +297,32 @@ void initializeClass(INSTANCE_CLASS_FAR);
 //#define IS_ARRAY_CLASS(c) (( ((CLASS)(c))->accessFlags & ACC_ARRAY_CLASS) != 0)
 BOOL IS_ARRAY_CLASS(CLASS_FAR clazz);
 
+
+/* These are the possible meanings of the low two bits of an object's .mhc
+* field.  If the upper 30 bits point to a thread or monitor, the low two
+* bits are implicitly zero.
+*/
+enum MHC_Tag_TypeCode {
+    /* The upper 30 bits are the hash code. 0 means no hash code */
+    MHC_UNLOCKED  = 0,
+
+    /* The upper 30 bits are the thread that locks this object.
+    * This object implicitly has no hash code, and the locking
+    * depth is 1.  There is no other contention for this object */
+    MHC_SIMPLE_LOCK  = 1,
+
+    /* The upper 30 bits are the thread that locks this object.
+    * thread->extendedLock.hashCode & thread->extendedLock->depth
+    * contain this object's hashCode and and locking depth.
+    * There is no other contention for this object. */
+    MHC_EXTENDED_LOCK = 2,
+
+    /* The upper 30 bits point to a MONITOR object */
+    MHC_MONITOR  = 3
+};
+
+
+#define OBJECT_MHC_TAG(obj) ((enum MHC_Tag_TypeCode)(getDWordAt(obj + MHC_OFFSET) & 0x3))
+#define OBJECT_HAS_MONITOR(obj)      (OBJECT_MHC_TAG(obj) != MHC_UNLOCKED)
 
 #endif
