@@ -111,6 +111,7 @@ extern u2 Timeslice;                /* Time slice counter for multitasking */
 void   InitializeThreading(INSTANCE_CLASS_FAR, ARRAY_FAR);
 void   stopThread(void);
 enum MonitorStatusType  monitorEnter(OBJECT_FAR object);
+enum MonitorStatusType  monitorExit(OBJECT_FAR object, PSTR_FAR exceptionName);
 enum MonitorStatusType  monitorWait(OBJECT_FAR object, long64 time);
 
 

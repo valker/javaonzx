@@ -219,7 +219,7 @@ typedef struct  {
  typedef METHOD             *                 METHOD_HANDLE;
  typedef far_ptr_of(METHOD_HANDLE)            METHOD_HANDLE_FAR;
 
- typedef FRAME              *                 FRAME_HANDLE;
+ typedef FRAME_FAR          *                 FRAME_HANDLE;
  typedef far_ptr_of(FRAME_HANDLE)             FRAME_HANDLE_FAR;
 
 
