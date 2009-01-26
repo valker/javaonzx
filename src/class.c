@@ -1040,8 +1040,12 @@ markClass:
                 * has somehow already become initialized.  We're done.
                 */
                 if (haveMonitor) {
-                    char *junk;
+                    //char *junk;
+                    PSTR junk;
+                    PSTR_FAR junkFar;
                     OBJECT_FAR of;
+                    junkFar.fields_.near_ptr_ = &junk;
+                    junkFar.fields_.page_ = getMMUState();
                     of.common_ptr_ = thisClass.common_ptr_;
                     monitorExit(of, &junk);
                 }
